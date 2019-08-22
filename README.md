@@ -2,37 +2,50 @@
 
 This repository provides template for `Slick`-based project with improvements made by MigaMake Pte Ltd in order to make static website generation more convinient.
 
-Template provides only Haskell source code, as a part of `Slick`-based generation you need to create template files yourself based on your design of hte site.
+## Install
 
-To generate template with all relevant functionality you need to use following command
+1. Install stack
+2. Generate template with all relevant functionality by using following command
 ```
 $ stack new <name of the project> https://gitlab.com/migamake/slick-template/raw/master/simple-slick.hsfiles
 ```
 
-Typically files live in `site` deirectory with strcture
+Template provides only Haskell source code, as a part of `Slick`-based generation you need to create template files yourself based on your design of hte site.
+
+## Configure
+
+Configuring project for your needs done in 2 ways, by modification of Haskell source code and by adding specific site files like html-templates, css, js required for the project.
+
+### Generator
+
+Slick package resuses [Shake](https://shakebuild.com/) build system. In order to create your own rules, add your special rules to the function `buildRules` in `app/Main.hs` and conversion logic at `app/Builder.hs`
+
+### HTML/CSS/JS/
+
+Typically files live in `site` directory with strcture everything outside `templates` folder will be considered either content or static file. Everything with `.md` extension wil be converted to `.html` if not specified.
 
 ```
 ├── 404.md
 ├── about.md
-├── css
+├── css                              -- CSS files
 ├── fonts
 ├── humans.txt
-├── images
+├── images                           -- Image files
 ├── js
 ├── post-drafts
 │   ├── post1.md
-├── posts
+├── posts                            -- content files for posts
 │   ├── post1.md
 │   ├── post2.md
 ├── privacy.md
 ├── robots.txt
-├── team
+├── team                             -- content files about team members
 │   ├── member1.md
 │   ├── member2.md
 │   └── member3.md
-├── team-drafts
+├── team-drafts                      -- content files about team members in draft
 │   └── template.md
-└── templates
+└── templates                        -- html templates for site pages
     ├── about.html
     ├── _components
     │   ├── post-list-featured.html
@@ -42,9 +55,16 @@ Typically files live in `site` deirectory with strcture
     ├── index.html
     ├── news.html
     ├── post.html
-    ├── _shared
+    ├── _shared                      -- templates that are reused in other templates
     │   ├── footer.html
     │   ├── header.html
     │   └── head.html
     └── team-member.html
 ```
+
+## Resources
+
+ - [slick-extra](https://gitlab.com/migamake/slick-extra) - package useful additional functionality for Slick
+ - [slick-live](https://gitlab.com/migamake/slick-live) - package with live-reloading functionality
+ - [shake-watch](https://gitlab.com/migamake/shake-watch) - package that provides file watching functionality for Shake
+ - [MigaMake Pte Ltd](https://www.migamake.com/) - template maintainer and active Slick contributor
