@@ -7,7 +7,7 @@ before_script:
   - export STACK_ROOT=`pwd`/.stack
   - stack new site simple-slick.hsfiles
   - cd site
-  - stack setup --reinstall
+  - stack setup --verbose
   - stack install --only-dependencies
   - stack build
 
