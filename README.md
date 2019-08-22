@@ -2,6 +2,44 @@
 
 This repository provides template for `Slick`-based project with improvements made by MigaMake Pte Ltd in order to make static website generation more convinient.
 
+- [GitLab CI](#gitlab-ci)
+- [Install](#install)
+- [Configure](#configure)
+  * [Generator](#generator)
+  * [HTML/CSS/JS/](#html-css-js-)
+- [Running](#running)
+- [Resources](#resources)
+
+
+## GitLab CI
+
+This project's static Pages are built by [GitLab CI][ci], following the steps
+defined in [`.gitlab-ci.yml`](.gitlab-ci.yml):
+
+```
+image: haskell:7.10.3
+
+pages:
+  cache:
+    paths:
+      - _cache
+      - .stack
+  before_script:
+    - export STACK_ROOT=`pwd`/.stack
+    - stack install --only-dependencies
+    - stack build
+  script:
+    -  stack exec -- site
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
+```
+
+Initial build may take some time (around 20 minutes), following builds will be significantly faster.
+
+
 ## Install
 
 1. Install stack
@@ -72,7 +110,7 @@ $ stack build
 which will build Haskell executable, then
 
 ```bash
-$ stack exec -- site;
+$ stack exec -- site
 ```
 which will generate output in `public` folder.
 Additionally you can use `--preview` and `--dev` options like this
