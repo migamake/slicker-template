@@ -97,6 +97,7 @@ import           System.Directory
 import           System.Directory.Extra        (listFilesRecursive, removeFile)
 import           System.Environment
 
+-- local modules
 import           Builder
 import           Utils
 
@@ -115,11 +116,19 @@ flags =
   , Option "" ["dev"          ] (NoArg $ Right Development) "run generator including drafts"
   ]
 
+-- | Rules for the Shake builder that define site construction workflow
+--  (should live in a separate function that can be used as an argument in other functions)
 buildRules :: Foldable t => t Flags -> Rules ()
 buildRules flags = do
   -- Mode aliases for quick reference
   let isDevMode     = Development `elem`    flags
   let isPreviewMode = Preview     `elem`    flags
+
+  action $ runAfter $ putStrLn "RUNNING AFTER!!!"
+  when isPreviewMode $ do
+    action $ runAfter $ liftIO $ void . forkIO $ do
+      putStrLn $ "Running with Preview"
+      serverStart "public" "127.0.0.1" 3030 serverHandler
 
   -- Choose between the 2 modes
   {- Main Mode (with or without dev flag) -}
@@ -137,10 +146,12 @@ buildRules flags = do
       let entitiesDir = "site"
 
       aboutCache         <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
+      teamCache          <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
+      teamCacheDraft     <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
       postsCache         <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
       postsDraftCache    <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
 
-      when withTextCheck $ want ["lint"]
+      want ["lint"]
 
       -- Require all the things we need to build the whole site
       phony "site" $ do
@@ -148,11 +159,9 @@ buildRules flags = do
           let reqDir =
                [ "static"
                , "posts"
-               , "projects"
                , "team"
                , "public/robots.txt"
                , "public/index.html"
-               , "public/projects.html"
                , "public/news.html"
                , "public/about.html"
                , "public/404.html"
@@ -164,8 +173,7 @@ buildRules flags = do
                   False -> reqDir
                   True  ->
                     reqDir ++
-                      [ "project-drafts"
-                      , "post-drafts"
+                      [ "post-drafts"
                       , "team-drafts"
                       ]
 
@@ -215,7 +223,6 @@ buildRules flags = do
         "public/js//*",
         "public/fonts//*",
         "public/images//*",
-        "public/presi//*.pdf",
         "public/robots.txt",
         "public/humans.txt"
         ] |%> \out -> do
@@ -229,9 +236,13 @@ buildRules flags = do
       "public/posts//*.html" %> buildPost postsCache
       "public/news.html" %> buildNews isDevMode postsDraftCache postsCache
 
+      -- rule for building Team page and related sub-pages
+      "team" ~> requireEntity "team"
+      "public/team//*.html" %> buildTeamMember teamCache
+
       -- build the main table of contents
       "public/*.html"     %> buildOther
-      "public/index.html" %> buildIndex isDevMode postsDraftCache postsCache projectsDraftCache projectsCache
+      "public/index.html" %> buildIndex isDevMode postsDraftCache postsCache
 
       case isDevMode of
         False -> return $ ()
@@ -243,10 +254,7 @@ buildRules flags = do
           "team-drafts" ~> requireEntity "team-drafts"
           "public/team-drafts//*.html" %> buildTeamMemberDraft teamCacheDraft
 
-          "project-drafts" ~> requireEntity "project-drafts"
-          "public/project-drafts//*.html" %> buildProjectDraft isDevMode projectsDraftCache
   want ["site"]
-
 
 -- | Function to start custom Shake pipeline for execution
 --
@@ -266,16 +274,6 @@ main = do
   cwd       <- getCurrentDirectory
 
   let shOpts  = shakeOptions {shakeVerbosity = Quiet}
-      wcOpts  = defaultWatchOps
-                  { watchPath   = cwd
-                  , includePath = cwd ++ "/site"
-                  , remake      = True
-                  }
-      isWatch = False
-
-  -- Convert provided flags to Shake compatible by hand
-  let (flags', files, errors) = getOpt RequireOrder flags shakeArgs
-      flags'' = Prelude.map fromEither flags'
 
   -- Run Shake pipeline as usuall
   runShakeBuilder
@@ -294,6 +292,680 @@ dropPrefix n str =
   toLower c : later
     where
       (c:later) = drop n str
+
+{-# START_FILE app/Builder.hs #-}
+{-# LANGUAGE CPP                       #-}
+{-# LANGUAGE DataKinds                 #-}
+{-# LANGUAGE DeriveGeneric             #-}
+{-# LANGUAGE DuplicateRecordFields     #-}
+{-# LANGUAGE NamedFieldPuns            #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE Rank2Types                #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TemplateHaskell           #-}
+
+module Builder( requireEntity
+              , loadEntity
+              , buildTeamMemberDraft
+              , buildDraftPost
+              , buildIndex
+              , buildOther
+              , buildTeam
+              , buildTeamMember
+              , buildNews
+              , buildAbout
+              , buildPost
+              , myMarkdownOptions
+              , html5Options
+              ) where
+
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad                (liftM, mzero)
+import           Data.Aeson                   as A
+import           Data.Aeson.Lens
+import           Data.Aeson.TH
+import           Data.Aeson.TH                (Options (..), defaultOptions,
+                                               deriveJSON)
+import           Data.Char
+import           Data.Function                (on)
+import           Data.List                    (intersperse, sortBy)
+import           Data.Map                     as M
+import           Data.Maybe
+import           Data.Monoid
+import           Data.Set                     as S
+import           Data.String.Utils
+import qualified Data.Text                    as T
+import           Data.Text.Lens
+import           Data.Time
+import           Development.Shake
+import           Development.Shake.Classes
+import           Development.Shake.FilePath
+import           Slick
+import           Slick.Build
+import           Slick.Pandoc
+import           System.Console.GetOpt
+import           System.Environment
+import           Text.Pandoc.Extensions
+import           Text.Pandoc.Highlighting
+import           Text.Pandoc.Options
+import           Text.Pandoc.Readers.Markdown (readMarkdown)
+import           Text.Pandoc.Writers.HTML     (writeHtml5String)
+
+import           Types
+
+------------------------------------------------------------------------------
+-- Builder related functions
+
+-- | Find specific file and tell Shake to build the corresponding html page
+requireFile :: String -> Action ()
+requireFile path = do
+  need [srcToDest "public" path -<.> "html"]
+
+-- | Find all speified entity source files and
+--   tell Shake to build corresponding html pages
+requireEntity :: String      -- ^ directory were specified objects live
+              -> Action ()
+requireEntity dir = do
+  entityNames <- fileNames dir
+  need ((\p -> srcToDest "public" p -<.> "html") <$> entityNames)
+
+--------------------------------------------------------------------------------
+-- FilePaths loaders
+
+-- | Get names of the files from `site` subdirectory, embeds into existing path structure
+fileNames :: String -> Action [FilePath]
+fileNames dir =
+  getDirectoryFiles "." ["site/" ++ dir ++ "//*.md"]
+
+-- | Get names of the files from provided directory pattern, full path
+fileNamesByPattern :: String -> Action [FilePath]
+fileNamesByPattern pattern' =
+  getDirectoryFiles "." [pattern']
+
+--------------------------------------------------------------------------------
+-- Page Builders
+
+-- | Given a cache of posts this will build a table of contents
+buildIndex :: Bool
+           -> (EntityFilePath PostDraftFilePath -> Action Post)
+           -> (EntityFilePath PostFilePath -> Action Post)
+           -> FilePath
+           -> Action ()
+buildIndex isDevMode postDraftCache postCache out = do
+  posts     <- traverse (postCache         . EntityFilePath) =<< fileNames "posts"
+  posts'    <- traverse (postDraftCache    . EntityFilePath) =<< fileNames "post-drafts"
+
+  indexTpl  <- compileTemplate' "site/templates/index.html"
+
+  let postsAll = if isDevMode then posts ++ posts' else posts
+
+  let postsSorted      = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) postsAll
+      postsFeatured    = Prelude.take 5 $ catMaybes $ Prelude.map (\p -> if (featured p) then (Just p) else Nothing ) postsSorted
+
+  let indexWrap = IndexWrap { posts         = postsSorted
+                            , postsFeatured = postsFeatured
+                            }
+      indexHTML = T.unpack $ substitute indexTpl (toJSON indexWrap)
+  writeFile' out indexHTML
+
+-- | Builds about html page
+buildAbout :: Bool
+           -> (EntityFilePath AboutFilePath -> Action About)
+           -> (EntityFilePath TeamMemberDraftFilePath -> Action TeamMember)
+           -> (EntityFilePath TeamMemberFilePath -> Action TeamMember)
+           -> FilePath
+           -> Action ()
+buildAbout isDevMode aboutCache teamCacheDraft teamCache out = do
+  team  <- traverse (teamCache      . EntityFilePath) =<< fileNames "team"
+  team' <- traverse (teamCacheDraft . EntityFilePath) =<< fileNames "team-draft"
+  about'<- traverse (aboutCache     . EntityFilePath) =<< fileNamesByPattern "site/about.md"
+
+  aboutTpl  <- compileTemplate' "site/templates/about.html"
+
+  let teamAll    = if isDevMode then team ++ team' else team
+      teamSorted = sortBy (\p1 p2 -> compare (tmemPriority p1) (tmemPriority p2)) teamAll
+
+  let about''   = head about'
+      aboutWrap = AboutWrap { abTeam        = teamSorted
+                            , abContent     = abrwContent about''
+                            , abUrl         = abrwUrl about''
+                            , abTitle       = abrwTitle about''
+                            , abDescription = abrwDescription about''
+                            }
+      aboutHTML = T.unpack $ substitute aboutTpl (toJSON aboutWrap)
+
+  writeFile' out aboutHTML
+
+-- | Builds team members html page
+buildTeam :: Bool
+          -> (EntityFilePath TeamMemberDraftFilePath -> Action TeamMember)
+          -> (EntityFilePath TeamMemberFilePath -> Action TeamMember)
+          -> FilePath
+          -> Action ()
+buildTeam isDevMode teamCacheDraft teamCache out = do
+  team  <- traverse (teamCache      . EntityFilePath) =<< fileNames "team"
+  team' <- traverse (teamCacheDraft . EntityFilePath) =<< fileNames "team-draft"
+
+  teamTpl   <- compileTemplate' "site/templates/_components/team-list.html"
+
+  let teamAll    = if isDevMode then team ++ team' else team
+      teamSorted = sortBy (\p1 p2 -> compare (tmemPriority p1) (tmemPriority p2)) teamAll
+
+  let teamWrap   = TeamWrap
+                     { team = teamSorted
+                     }
+      teamHtml = T.unpack $ substitute teamTpl (toJSON teamWrap)
+  writeFile' out teamHtml
+
+-- | Given a cache of posts this will build a table of contents
+buildNews :: Bool
+          -> (EntityFilePath PostDraftFilePath -> Action Post)
+          -> (EntityFilePath PostFilePath -> Action Post)
+          -> FilePath
+          -> Action ()
+buildNews isDevMode postDraftCache postCache out = do
+  posts    <- traverse (postCache      . EntityFilePath) =<< fileNames "posts"
+  posts'   <- traverse (postDraftCache . EntityFilePath) =<< fileNames "post-drafts"
+  indexTpl <- compileTemplate' "site/templates/news.html"
+
+  let postsAll    = if isDevMode then posts ++ posts' else posts
+      postsSorted = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) postsAll
+      newsWrap    = NewsWrap
+                      { news    = postsSorted
+                      }
+      newsHTML = T.unpack $ substitute indexTpl (toJSON newsWrap)
+  writeFile' out newsHTML
+
+-- | Build a html file for a given post from a cache of posts.
+buildPost :: (EntityFilePath PostFilePath -> Action Post)
+          -> FilePath
+          -> Action ()
+buildPost postCache out = do
+  let srcPath = destToSrc "site" out -<.> "md"
+      postURL = srcToURL srcPath
+  post <- postCache (EntityFilePath srcPath)
+  template <- compileTemplate' "site/templates/post.html"
+  writeFile' out . T.unpack $ substitute template (toJSON post)
+
+-- | Build a html file for a given draft post from a cache of drafts.
+buildDraftPost :: (EntityFilePath PostDraftFilePath -> Action Post)
+               -> FilePath
+               -> Action ()
+buildDraftPost postCache out = do
+  let srcPath = destToSrc "site" out -<.> "md"
+      postURL = srcToURL srcPath
+  post <- postCache (EntityFilePath srcPath)
+  template <- compileTemplate' "site/templates/post.html"
+  writeFile' out . T.unpack $ substitute template (toJSON post)
+
+-- | Build an html file for a given team member from a cache of members.
+buildTeamMember :: (EntityFilePath TeamMemberFilePath -> Action TeamMember)
+                -> FilePath
+                -> Action ()
+buildTeamMember tmCache out = do
+  let srcPath = destToSrc "site" out -<.> "md"
+      tmURL = srcToURL srcPath
+  tm  <- tmCache (EntityFilePath srcPath)
+  tpl <- compileTemplate' "site/templates/team-member.html"
+  writeFile' out . T.unpack $ substitute tpl (toJSON tm)
+
+-- | Builds team member draft html page
+buildTeamMemberDraft :: (EntityFilePath TeamMemberDraftFilePath -> Action TeamMember)
+                     -> FilePath
+                     -> Action ()
+buildTeamMemberDraft tmCache out = do
+  let srcPath = destToSrc "site" out -<.> "md"
+      tmURL   = srcToURL srcPath
+  tm  <- tmCache (EntityFilePath srcPath)
+  tpl <- compileTemplate' "site/templates/team-member.html"
+  writeFile' out . T.unpack $ substitute tpl (toJSON tm)
+
+-- | Builds any other html page encountered during execution
+buildOther filename = do
+    liftIO $ putStrLn $ unwords ["source", show source, "template", show template]
+    need [source, template]
+    content  <- readFile' source >>=  markdownToHTML myMarkdownOptions html5Options . T.pack
+    template <- compileTemplate' template
+    writeFile' filename . T.unpack $ substitute template $ toJSON content
+  where
+    source   = destToSrc "site" filename -<.> "md"
+    template = "site/templates/generic.html"
+
+--------------------------------------------------------------------------------
+-- Pandoc customization
+
+myMarkdownToHTML :: T.Text -> Action Value
+myMarkdownToHTML  =
+  loadUsing (readMarkdown myMarkdownOptions) (writeHtml5String html5Options)
+
+myMarkdownOptions = def { readerExtensions = exts }
+ where
+  exts = mconcat
+    [ extensionsFromList
+      [ Ext_yaml_metadata_block
+      , Ext_fenced_code_attributes
+      , Ext_auto_identifiers
+      , Ext_inline_notes
+      , Ext_multiline_tables
+      ]
+    , githubMarkdownExtensions
+    ]
+
+html5Options :: WriterOptions
+html5Options =
+  def { writerHighlightStyle = Just tango
+      , writerExtensions     = writerExtensions def
+      }
+
+{-# START_FILE app/Types.hs #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeFamilies          #-}
+
+module Types where
+
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad              (liftM, mzero)
+import           Data.Aeson                 as A
+import           Data.Aeson.Encoding        (string)
+import           Data.Aeson.Lens
+import           Data.Aeson.TH
+import           Data.Aeson.Types           (typeMismatch)
+import           Data.Char
+import           Data.Function              (on)
+import           Data.List                  (intersperse, sortBy)
+import           Data.Map                   as M
+import           Data.Monoid
+import           Data.Ord                   (comparing)
+import           Data.Set                   as S
+import           Data.String
+import qualified Data.Text                  as T
+import           Data.Text.Lens
+import           Data.Time
+import           Development.Shake
+import           Development.Shake.Classes
+import           Development.Shake.FilePath
+import           GHC.Generics               (Generic)
+
+import           TH
+import           Utils
+
+-------------------------------------------------------------------------------
+-- Core Data Types and Instances
+
+-- | Represents the template dependencies of the index page
+data IndexWrap =
+  IndexWrap
+    { posts         :: [Post]
+    , postsFeatured :: [Post]
+    } deriving (Generic, Show)
+
+instance FromJSON IndexWrap
+instance ToJSON IndexWrap
+
+data OptDisqus =
+  OptDisqus
+    { isEnabled      :: Bool
+    , pageUrl        :: String
+    , pageIdentifier :: String
+    }
+
+-- | A JSON serializable representation of a post's metadata
+data Post =
+  Post
+    { title       :: String
+    , authors     :: [T.Text]
+    , date        :: UTCTime
+    , image       :: Maybe String
+    , featured    :: Bool
+    , description :: String
+--    , extDisqus    :: OptDisqus
+--    , extFbComment :: OptFbComment
+        -- internally predefined by Slick
+    , url         :: String
+    , content     :: String
+    } deriving (Generic, Eq, Ord, Show)
+
+instance FromJSON Post where
+  parseJSON =
+    withObject "metadata" $ \o -> do
+      title       <- o .: "title"
+      authors'    <- o .: "authors"
+      date'       <- o .: "date"
+      image       <- o .: "image"
+      featured    <- o .: "featured"
+      description <- o .: "description"
+      url         <- o .: "url"
+      content     <- o .: "content"
+
+      let authors = T.splitOn "," authors'
+
+      -- SB: for some reason we see doubled FromJSON -> ToJSON conversion, so
+      --     for now we need to check for 2 possible date formats
+      let dateM = parseTimeM True defaultTimeLocale "%Y-%m-%d" date'
+      let date  =  case dateM of
+                     Nothing -> parseTimeOrError True defaultTimeLocale "%B %e, %Y" date'
+                     Just tm -> tm
+      return $
+        Post title authors date image featured description url content
+
+instance ToJSON Post where
+  toJSON (Post tl au dt im fe ds ul cn) =
+    A.object
+      [ "title"       A..= tl
+      , "authors"     A..= T.intercalate "," au
+      , "date"        A..= (renderToDay dt)
+      , "image"       A..= im
+      , "featured"    A..= fe
+      , "description" A..= ds
+      , "url"         A..= ul
+      , "content"     A..= cn
+      ]
+
+data NewsWrap =
+  NewsWrap
+    { news :: [Post]
+    } deriving (Generic, Show)
+
+instance FromJSON NewsWrap
+instance ToJSON NewsWrap
+
+-- | Represents valid sponsors
+data Sponsor =
+    Migamake
+  | Intellishore
+  | JusPay
+  | Dolla
+  deriving (Generic, Eq, Ord)
+
+instance Show Sponsor where
+  show Intellishore = "Intellishore Corp."
+  show Migamake     = "Atreides Mining, Inc"
+  show JusPay       = "JusPay Co."
+  show Dolla        = "Dolla.org"
+
+-- | Get URL to project sponsor's page
+sponsorURL :: Sponsor -> String
+sponsorURL Migamake     = "https://www.migamake.com"
+sponsorURL Intellishore = "https://www.intellishorecorp.com"
+sponsorURL JusPay       = "https://www.juspay.in"
+sponsorURL Dolla        = "https://www.dolla.org"
+
+instance Read Sponsor where
+  readsPrec _ = asReader (readSponsor . T.pack)
+    where
+      asReader :: (String -> Either String Sponsor) -> ReadS Sponsor
+      asReader f s = case f s of
+                       Right v   -> [(v, "")]
+                       Left  err -> []
+
+-- | Helper function for reading sponsor from either String and JSON
+readSponsor :: T.Text -> Either String Sponsor
+readSponsor = recognize . T.toLower
+  where
+    recognize "own"          = Right Migamake
+    recognize "migamake"     = Right Migamake
+    recognize "intellishore" = Right Intellishore
+    recognize "juspay"       = Right JusPay
+    recognize "dolla"        = Right Dolla
+    recognize x              = Left $ "Unknown sponsor:" <> show x
+
+instance FromJSON Sponsor where
+  parseJSON (String s) =
+    case readSponsor s of
+      Right r -> return r
+      Left  e -> fail e
+  parseJSON invalid = typeMismatch "Sponsor" invalid
+
+instance ToJSON Sponsor where
+  toEncoding = string . show
+
+-- | Represents Project page
+data Project =
+  Project
+    { projTitle       :: String
+    , projAuthors     :: [T.Text]
+    , projDate        :: UTCTime
+    , projLink        :: Maybe String  -- ^ external link to a project
+    , projPriority    :: String  -- TODO: This should be Int, but Slick converts number meta as a string value "N" which leads to typecheck error
+    , projTags        :: [T.Text]
+    , projStatus      :: String
+    , projSponsor     :: Sponsor
+    , projDescription :: String
+    , projImage       :: String
+    , projFeatured    :: Bool
+        -- internally predefined by Slick
+    , projUrl         :: String        -- ^ internal link to a project
+    , projContent     :: String
+    } deriving (Generic, Eq, Ord, Show)
+
+
+-- | SB: Almost everything dumb parsed by Slick as String
+--   we need to write custom parser by hand to overhaul needed types and conversions
+instance FromJSON Project where
+  parseJSON =
+    withObject "metadata" $ \o -> do
+      title       <- o .: "title"
+      authors'    <- o .: "authors"
+      date'       <- o .: "date"
+      link        <- o .: "link"
+      priority    <- o .: "priority"
+      tags        <- o .: "tags"
+      status      <- o .: "status"
+      sponsor     <- o .: "sponsor"
+      description <- o .: "description"
+      image       <- o .: "image"
+      featured    <- o .: "featured"
+      url         <- o .: "url"
+      content     <- o .: "content"
+
+      let authors = T.splitOn "," authors'
+
+      -- SB: for some reason we see doubled FromJSON -> ToJSON conversion, so
+      --     for now we need to check for 2 possible date formats
+      let dateM = parseTimeM True defaultTimeLocale "%Y-%m-%d" date'
+      let date  =  case dateM of
+                     Nothing -> parseTimeOrError True defaultTimeLocale "%B %e, %Y" date'
+                     Just tm -> tm
+
+      return $
+        Project title authors date link priority tags status sponsor description image featured url content
+
+-- TODO: Sergey, please use record syntax here for ease of reading
+instance ToJSON Project where
+  toJSON (Project tl au dt ln pr tg st sp ds im fe ul cn) =
+    A.object
+      [ "title"       A..= tl
+      , "authors"     A..= T.intercalate "," au
+      , "date"        A..= (renderToDay dt)
+      , "link"        A..= ln
+      , "priority"    A..= pr
+      , "tags"        A..= tg
+      , "status"      A..= st
+      , "sponsor"     A..= sp
+      , "sponsorLink" A..= sponsorURL sp  -- SB: this field is not part of data type
+      , "description" A..= ds
+      , "image"       A..= im
+      , "featured"    A..= fe
+      , "url"         A..= ul
+      , "content"     A..= cn
+      ]
+
+data ProjectsWrap =
+  ProjectsWrap
+    { projects :: [Project]
+    } deriving (Generic, Show)
+
+instance FromJSON ProjectsWrap
+instance ToJSON ProjectsWrap
+
+data TeamMember =
+  TeamMember
+   { tmemFunction :: String
+   , tmemRole     :: String
+   , tmemPriority :: String -- TODO: This should be Int, but Slick converts number meta as a string value "N" which leads to typecheck error
+   , tmemName     :: String
+   , tmemImage    :: String
+      -- internally predefined by Slick
+   , tmemUrl      :: String
+   , tmemContent  :: T.Text
+   } deriving (Generic, Eq, Ord, Show)
+
+instance FromJSON TeamMember where
+  parseJSON =
+    withObject "metadata" $ \o -> do
+      tmemFunction <- o .: "function"
+      tmemRole     <- o .: "role"
+      tmemPriority <- o .: "priority"
+      tmemName     <- o .: "name"
+      tmemImage    <- o .: "image"
+      tmemUrl      <- o .: "url"
+      tmemContent  <- o .: "content"
+      return $ TeamMember{..}
+
+instance ToJSON TeamMember where
+  toJSON (TeamMember fn rl pr nm im url cn) =
+    A.object
+      [ "function"  A..= fn
+      , "role"      A..= rl
+      , "priority"  A..= pr
+      , "name"      A..= nm
+      , "image"     A..= im
+      , "url"       A..= url
+      , "content"   A..= cn -- (T.init . T.tail $ cn) -- SB: Ugly hack, keeps <p> for teams for uknown reason, remove quotation
+      ]
+
+data TeamWrap =
+  TeamWrap
+    { team :: [TeamMember]
+    } deriving (Generic, Show)
+
+instance FromJSON TeamWrap
+instance ToJSON TeamWrap
+
+-- | Represents raw About page
+data About =
+  About
+    { abrwTitle       :: String
+    , abrwDescription :: String
+    -- internally predefined by Slick
+    , abrwUrl         :: String
+    , abrwContent     :: String
+    } deriving (Generic, Show)
+
+-- use this to strip proj prefix
+deriveJSON defaultOptions { fieldLabelModifier = dropPrefix 4 } ''About
+
+-- | Represents About page
+-- with additional data
+data AboutWrap =
+  AboutWrap
+    { abTitle       :: String
+    , abDescription :: String
+    , abTeam        :: [TeamMember]
+    -- internally predefined by Slick
+    , abUrl         :: String
+    , abContent     :: String
+    } deriving (Generic, Show)
+
+deriveJSON defaultOptions { fieldLabelModifier = dropPrefix 2 } ''AboutWrap
+
+--------------------------------------------------------------------------------
+
+-- | We have to use unique constructors becasue Shake needs to create `Value` for each entity path
+--   and to avoid Shake Oracle conflict. Used as a Shake Cache key to build a cache of post objects.
+
+newtype AboutFilePath =
+  AboutFilePath String
+  deriving (Show, Eq,  Generic, Hashable, Binary, NFData)
+
+newtype PostFilePath =
+  PostFilePath String
+  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
+
+newtype PostDraftFilePath =
+  PostDraftFilePath String
+  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
+
+newtype ProjectFilePath =
+  ProjectFilePath String
+  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
+
+newtype ProjectDraftFilePath =
+  ProjectDraftFilePath String
+  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
+
+newtype TeamMemberFilePath =
+  TeamMemberFilePath String
+  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
+
+newtype TeamMemberDraftFilePath =
+  TeamMemberDraftFilePath String
+  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
+
+
+{-# START_FILE app/Utils.hs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
+
+module Utils
+  ( renderToDay
+  , getDirectoryPaths
+  ) where
+
+import           Control.Monad
+import           Data.List                  (intersperse, sortBy)
+import           Data.List                  as L (intersperse, sortBy, (\\))
+import           Data.Ord                   (comparing)
+import qualified Data.Text                  as T
+import           Data.Time
+import           Development.Shake
+import           Development.Shake.FilePath
+import           System.Directory
+import           System.Directory.Extra     (listFilesRecursive, removeFile)
+import           System.Environment
+
+------------------------------------------------------------------------------
+-- Helper functions
+
+-- | Generalized sorting function
+sortByM :: (Monad m, Ord k) => (a -> m k) -> [a] -> m [a]
+sortByM f xs =
+  liftM (Prelude.map fst . sortBy (comparing snd)) $ mapM (\x -> liftM (x,) (f x)) xs
+
+-- | Render timestamp to the format required by page design
+renderToDay :: FormatTime t => t -> String
+renderToDay = formatTime defaultTimeLocale "%B %e, %Y"
+
+-- | Given a list of extensions and directories,
+--   find all files that match, and return full paths.
+getDirectoryPaths :: [FilePath]         -- ^ file pattern like *.md
+                  -> [FilePath]         -- ^ directories to look at
+                  -> Action [FilePath]
+getDirectoryPaths extensions dirs =
+  concat <$> mapM getPaths dirs
+    where
+      getPaths :: FilePath -> Action [FilePath]
+      getPaths dir =
+        fmap (dir </>) <$>
+          getDirectoryFiles dir extensions
+
 
 {-# START_FILE README.md #-}
 # {{name}}
