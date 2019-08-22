@@ -63,7 +63,7 @@ module Main where
 import           Control.Applicative
 import           Control.Concurrent
 import           Control.Lens
-simport           Control.Monad                 (forM_, forever, liftM, mzero,
+import           Control.Monad                 (forM_, forever, liftM, mzero,
                                                 void, when)
 import           Data.Aeson                    as A
 import           Data.Aeson.Lens
