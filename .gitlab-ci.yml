@@ -5,6 +5,7 @@ before_script:
   - ssh-keygen -t rsa -C "ci@migamake.com" -f ~/.ssh/id_rsa
   - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
   - export STACK_ROOT=`pwd`/.stack
+  - stack setup --reinstall
   - stack new site simple-slick.hsfiles
   - cd site
   - stack setup
