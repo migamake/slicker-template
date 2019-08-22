@@ -1,4 +1,4 @@
-image: "migamake/haskell-build:8.6.2"
+image: "sigrlami/stack-build"
 
 before_script:
   - apt-get update && apt-get install -y xz-utils make openssh-client
