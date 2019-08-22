@@ -5,7 +5,7 @@ before_script:
   # add woraround to properly fetch packages as git repos
   - ssh-keygen -t rsa -C "ci@migamake.com" -f ~/.ssh/id_rsa
   - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-  - git config --global url.https://github.com/.insteadOf git@github.com:
+  - git config --global url."https://github.com/".insteadOf "git@github.com:"
   # prepare dependency cache for further reuse
   - export STACK_ROOT=`pwd`/.stack
   - stack new site simple-slick.hsfiles
