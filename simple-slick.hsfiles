@@ -3,12 +3,13 @@ name:                {{name}}
 version:             0.1.0.0
 #synopsis:
 #description:
-homepage:            https://github.com/{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}#readme
+homepage:            "https://github.com/{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}#readme"
 license:             BSD3
-author:              {{author-name}}{{^author-name}}Author name here{{/author-name}}
-maintainer:          {{author-email}}{{^author-email}}example@example.com{{/author-email}}
-copyright:           {{copyright}}{{^copyright}}{{year}}{{^year}}2019{{/year}} {{author-name}}{{^author-name}}Author name here{{/author-name}}{{/copyright}}
+author:              "{{author-name}}{{^author-name}}Author name here{{/author-name}}"
+maintainer:          "{{author-email}}{{^author-email}}example@example.com{{/author-email}}"
+copyright:           "{{copyright}}{{^copyright}}{{year}}{{^year}}2019{{/year}} {{author-name}}{{^author-name}}Author name here{{/author-name}}{{/copyright}}"
 category:            {{category}}{{^category}}Web{{/category}}
+
 extra-source-files:
 - README.md
 
@@ -62,7 +63,7 @@ module Main where
 import           Control.Applicative
 import           Control.Concurrent
 import           Control.Lens
-import           Control.Monad                 (forM_, forever, liftM, mzero,
+simport           Control.Monad                 (forM_, forever, liftM, mzero,
                                                 void, when)
 import           Data.Aeson                    as A
 import           Data.Aeson.Lens
