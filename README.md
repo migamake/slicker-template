@@ -34,7 +34,7 @@ Typically files live in `site` directory where everything outside `templates` fo
 ├── js
 ├── post-drafts
 │   ├── post1.md
-├── posts                            -- content files for posts
+├── posts                            -- add content files for posts
 │   ├── post1.md
 │   ├── post2.md
 ├── privacy.md
@@ -61,6 +61,22 @@ Typically files live in `site` directory where everything outside `templates` fo
     │   └── head.html
     └── team-member.html
 ```
+
+## Running
+
+To run you need to execute following commands
+
+```bash
+$ stack build
+$ stack exec -- site;
+```
+additionally you can use `--preview` and `--dev` options like this
+```bash
+$ stack exec -- site --preview --dev
+```
+
+- (`--preview`) - Preview  mode will spin out small server and host site locally on port `3030`
+- (`--dev`)     - Development mode will include drafts in the output for the site which is useful during content writing
 
 ## Resources
 
