@@ -28,33 +28,254 @@ executables:
 import Distribution.Simple
 main = defaultMain
 
-{-# START_FILE src/Main.hs #-}
+{-# START_FILE app/Main.hs #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DuplicateRecordFields      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
+
 module Main where
+
+import           Control.Applicative
+import           Control.Concurrent
+import           Control.Lens
+import           Control.Monad                 (forM_, forever, liftM, mzero,
+                                                void, when)
+import           Data.Aeson                    as A
+import           Data.Aeson.Lens
+import           Data.Aeson.TH
+import           Data.Aeson.TH                 (Options (..), defaultOptions,
+                                                deriveJSON)
+import           Data.Char
+import           Data.Either.Utils
+import           Data.Function                 (on)
+import           Data.IORef
+import           Data.List                     as L (intersperse, sortBy, (\\))
+import           Data.Map                      as M
+import           Data.Monoid
+import           Data.Set                      as S
+import           Data.String.Utils
+import qualified Data.Text                     as T
+import           Data.Text.Lens
+import           Data.Time
+import           Development.Shake
+import           Development.Shake.Classes
+import           Development.Shake.Database
+import           Development.Shake.FilePath    (toStandard)
+import           Development.Shake.FilePath
+import           Development.Shake.Util        (shakeArgsPruneWith)
+import           Development.Shake.Watch
+import           Development.Shake.Watch.Types hiding (action)
+import           Slick
+import           Slick.Build
+import           Slick.Serve
+import           System.Console.GetOpt
+import           System.Directory
+import           System.Directory.Extra        (listFilesRecursive, removeFile)
+import           System.Environment
+
+import           Builder
+import           Utils
+
+-------------------------------------------------------------------------------
+
+-- | List our custom keys that we need to manage additional behaviour
+data Flags =
+    Preview     -- ^ key to run Warp server
+  | Development -- ^ key to run in Development mode, to include drafts objects
+  deriving (Eq)
+
+-- | Specific flags for Shake to allow custom keys required for specific logic
+flags :: forall a. [OptDescr (Either a Flags)]
+flags =
+  [ Option "" ["preview"      ] (NoArg $ Right Preview    ) "running as preview"
+  , Option "" ["dev"          ] (NoArg $ Right Development) "run generator including drafts"
+  ]
+
+buildRules :: Foldable t => t Flags -> Rules ()
+buildRules flags = do
+  -- Mode aliases for quick reference
+  let isDevMode     = Development `elem`    flags
+  let isPreviewMode = Preview     `elem`    flags
+
+  -- Choose between the 2 modes
+  {- Main Mode (with or without dev flag) -}
+  id $ do
+      liftIO $ putStrLn $
+        if isDevMode
+        then "Running in Development mode\n"
+        else "Running in Production mode\n"
+
+      -- Set up caches
+
+      -- we use single input entity directory but
+      -- loadEntity function consumes this variable so they can be different
+      -- if needed
+      let entitiesDir = "site"
+
+      aboutCache         <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
+      postsCache         <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
+      postsDraftCache    <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
+
+      when withTextCheck $ want ["lint"]
+
+      -- Require all the things we need to build the whole site
+      phony "site" $ do
+          -- Required folders and pages that should be part of output
+          let reqDir =
+               [ "static"
+               , "posts"
+               , "projects"
+               , "team"
+               , "public/robots.txt"
+               , "public/index.html"
+               , "public/projects.html"
+               , "public/news.html"
+               , "public/about.html"
+               , "public/404.html"
+               , "public/privacy.html"
+               ]
+
+          let reqDirectories =
+                case isDevMode of
+                  False -> reqDir
+                  True  ->
+                    reqDir ++
+                      [ "project-drafts"
+                      , "post-drafts"
+                      , "team-drafts"
+                      ]
+
+          need reqDirectories
+
+          pages <- fmap (("public"</>) . (-<.>"html")) <$> getDirectoryFiles "site" ["*.md"]
+          liftIO $ print pages
+          need pages
+
+      "linkchecker.out" ~> do
+          need ["site"]
+          command_ [Cwd "public"] "linkchecker" ["--no-status", "."] -- "--file-output", "text/utf-8/linkchecker.out", "-quiet", "."]
+
+      phony "textcheck" $ do
+            need ["site"]
+            allPosts <- getDirectoryPaths ["*.md"] ["site/posts", "site/post-drafts", "site/projects", "site/project-drafts", "site/team"]
+            forM_ allPosts $ \aPost -> do
+                command_ [] "hunspell" ["-w", aPost]
+                command_ [] "diction"        [aPost]
+
+      phony "tidy" $ do
+          need ["site"]
+          --need ["public//index.html", "public/posts/*.html"]
+          inputs <- getDirectoryFiles "public" ["//*.html"]
+          forM_ inputs $ \input ->
+            --liftIO $ putStrLn $ "Run tidy on " <> input
+            command_ [Cwd "public"] "tidy" (["-config", "../tidy.init", input])
+
+      -- Linting
+      phony "lint" $ do
+          need ["tidy", "linkchecker.out", "textcheck"]
+
+      phony "static" $ do
+          staticFiles <-
+            getDirectoryFiles "." [ "site/css//*"
+                                  , "site/js//*"
+                                  , "site/fonts//*"
+                                  , "site/images//*"
+                                  , "site/presi//*.pdf"
+                                  , "site/robots.txt"
+                                  , "site/humans.txt" ]
+          need (("public" </>) . dropDirectory1 <$> staticFiles)
+
+      -- Require all static assets
+      -- Rule for handling static assets, just copy them from source to dest
+      [ "public/css//*",
+        "public/js//*",
+        "public/fonts//*",
+        "public/images//*",
+        "public/presi//*.pdf",
+        "public/robots.txt",
+        "public/humans.txt"
+        ] |%> \out -> do
+          copyFileChanged ("site" </> dropDirectory1 out) out
+
+      -- rule for building About page
+      "public/about.html" %> buildAbout isDevMode aboutCache teamCacheDraft teamCache
+
+      -- Find and require every post to be built and News page
+      "posts" ~> requireEntity "posts"  -- requirePosts
+      "public/posts//*.html" %> buildPost postsCache
+      "public/news.html" %> buildNews isDevMode postsDraftCache postsCache
+
+      -- build the main table of contents
+      "public/*.html"     %> buildOther
+      "public/index.html" %> buildIndex isDevMode postsDraftCache postsCache projectsDraftCache projectsCache
+
+      case isDevMode of
+        False -> return $ ()
+        True  -> do
+          -- Build Drafts directory for development needs
+          "post-drafts" ~> requireEntity "post-drafts"
+          "public/post-drafts//*.html" %> buildDraftPost postsDraftCache
+
+          "team-drafts" ~> requireEntity "team-drafts"
+          "public/team-drafts//*.html" %> buildTeamMemberDraft teamCacheDraft
+
+          "project-drafts" ~> requireEntity "project-drafts"
+          "public/project-drafts//*.html" %> buildProjectDraft isDevMode projectsDraftCache
+  want ["site"]
+
+
+-- | Function to start custom Shake pipeline for execution
+--
+runShakeBuilder :: ShakeOptions                     -- ^ Options for the Shake builder
+                -> [OptDescr (Either String Flags)] -- ^ Converted CLI arguments
+                -> IO ()
+runShakeBuilder shOpts flags =
+ shakeArgsPruneWith
+    shOpts (pruner "public") flags $
+      \flags targets -> do
+        let rls = Just $ buildRules flags
+        return $ rls
 
 main :: IO ()
 main = do
-  shakeArgsPruneWith (shakeOptions {shakeVerbosity = Chatty}) pruner flags
-    $ \flags targets -> return $ Just $ do
+  shakeArgs <- getArgs
+  cwd       <- getCurrentDirectory
 
-          phony "site" $ do
-	     -- Required folders and pages that should be part of output
-             -- NB: order is part of sitemap priority
-             let reqDir =
-                [ "static"
-                , "public/index.html"
-                , "public/posts.html"
-                , "public/about.html"
-                , "posts"
-                , "public/404.html"
-                ]
+  let shOpts  = shakeOptions {shakeVerbosity = Quiet}
+      wcOpts  = defaultWatchOps
+                  { watchPath   = cwd
+                  , includePath = cwd ++ "/site"
+                  , remake      = True
+                  }
+      isWatch = False
 
-              need reqDirectories
+  -- Convert provided flags to Shake compatible by hand
+  let (flags', files, errors) = getOpt RequireOrder flags shakeArgs
+      flags'' = Prelude.map fromEither flags'
 
-              pages <- fmap (("public"</>) . (-<.>"html")) <$> getDirectoryFiles "site" ["*.md"]
-              liftIO $ print pages
-              need pages
+  -- Run Shake pipeline as usuall
+  runShakeBuilder
+    shOpts
+    flags
 
-       want ["site"]
+{-# START_FILE app/TH.hs #-}
+module TH (dropPrefix) where
+
+import           Data.Char (toLower)
+
+--------------------------------------------------------------------------------
+
+dropPrefix :: Int -> String -> String
+dropPrefix n str =
+  toLower c : later
+    where
+      (c:later) = drop n str
 
 {-# START_FILE README.md #-}
 # {{name}}
