@@ -22,7 +22,7 @@ Slick package resuses [Shake](https://shakebuild.com/) build system. In order to
 
 ### HTML/CSS/JS/
 
-Typically files live in `site` directory where everything outside `templates` folder will be considered either content or static file. Everything with `.md` extension wil be converted to `.html` if not specified. One can have following structure mapped to current generator setup.
+Typically files live in `site` directory where everything outside `templates` folder will be considered either content or static file. Everything with `.md` extension wil be converted to `.html` if not specified differently. Here is example structure  mapped to the current generator configuration.
 
 ```
 ├── 404.md
@@ -64,13 +64,18 @@ Typically files live in `site` directory where everything outside `templates` fo
 
 ## Running
 
-To run you need to execute following commands
+To run site generation you need to execute following commands
 
 ```bash
 $ stack build
+```
+which will build Haskell executable, then
+
+```bash
 $ stack exec -- site;
 ```
-additionally you can use `--preview` and `--dev` options like this
+which will generate output in `public` folder.
+Additionally you can use `--preview` and `--dev` options like this
 ```bash
 $ stack exec -- site --preview --dev
 ```
