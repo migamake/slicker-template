@@ -2,7 +2,14 @@
 
 This repository provides template for `Slick`-based project with improvements made by MigaMake Pte Ltd in order to make static website generation more convinient.
 
-Template provides only Haskell source code, as a part of `Slick`-based generation you need to create template files yourself. Typically files live in `site` deirectory with strcture
+Template provides only Haskell source code, as a part of `Slick`-based generation you need to create template files yourself based on your design of hte site.
+
+To generate template with all relevant functionality you need to use following command
+```
+$ stack new <name of the project> https://gitlab.com/migamake/slick-template/raw/master/simple-slick.hsfiles
+```
+
+Typically files live in `site` deirectory with strcture
 
 ```
 ├── 404.md
