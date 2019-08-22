@@ -12,17 +12,35 @@ category:            {{category}}{{^category}}Web{{/category}}
 extra-source-files:
 - README.md
 
-dependencies:
-  - base >= 4.7 && < 5
-  - slick
-  - slick-extra
-  - slick-live
-  - shake-watch
+description:         Company website <https://www.site.com>
 
 executables:
   {{name}}:
-    source-dirs:      app
-    main:             Main.hs
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -O0
+    dependencies:
+    - base >= 4.7 && < 5
+    - shake
+    - shake-watch
+    - slick
+    - slick-live
+    - aeson
+    - extra
+    - lens-aeson
+    - lens
+    - text
+    - binary
+    - containers
+    - time
+    - MissingH
+    - hashable
+    - pandoc
+    - directory
 
 {-# START_FILE Setup.hs #-}
 import Distribution.Simple
