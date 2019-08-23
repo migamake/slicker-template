@@ -118,6 +118,7 @@ Additionally you can use `--preview` and `--dev` options like this
 $ stack exec -- site --preview --dev
 ```
 
+- `site` name of executable, replace to yours
 - (`--preview`) - Preview  mode will spin out small server and host site locally on port `3030`
 - (`--dev`)     - Development mode will include drafts in the output for the site which is useful during content writing
 

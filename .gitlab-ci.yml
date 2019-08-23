@@ -1,16 +1,19 @@
-image: "sigrlami/stack-build:latest"
+image: "haskell:latest"
 
 before_script:
-  - apt-get update && apt-get install -y xz-utils make openssh-client
-  # add woraround to properly fetch packages as git repos
+  - apt-get update && apt-get install -y make openssh-client xz-utils
+  # add woraround to properly fetch packages as git repos from Github, Gitlab
   - ssh-keygen -t rsa -C "ci@migamake.com" -f ~/.ssh/id_rsa
   - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+  - ssh-keyscan -t rsa gitlab.com >> ~/.ssh/known_hosts
   - git config --global url."https://github.com/".insteadOf "git@github.com:"
+  - git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
   # prepare dependency cache for further reuse
   - export STACK_ROOT=`pwd`/.stack
   - stack new site simple-slick.hsfiles
-  - cd site
-  - stack setup --verbose
+  - cd site/
+  - ls
+  - stack setup
   - stack install --only-dependencies
   - stack build
 
@@ -20,7 +23,6 @@ build:
       - _cache
       - .stack
   script:
-    - cd site
     - stack exec -- site
   except:
     - master
@@ -31,7 +33,6 @@ pages:
       - _cache
       - .stack
   script:
-    - cd site
     - stack exec -- site
   artifacts:
     paths:

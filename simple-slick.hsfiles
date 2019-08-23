@@ -29,6 +29,7 @@ executables:
     - shake
     - shake-watch
     - slick
+    - slick-extra
     - slick-live
     - aeson
     - extra
@@ -91,7 +92,7 @@ import           Development.Shake.Util        (shakeArgsPruneWith)
 import           Development.Shake.Watch
 import           Development.Shake.Watch.Types hiding (action)
 import           Slick
-import           Slick.Build
+import           Slick.Extra
 import           Slick.Serve
 import           System.Console.GetOpt
 import           System.Directory
@@ -130,6 +131,7 @@ buildRules flags = do
     action $ runAfter $ liftIO $ void . forkIO $ do
       putStrLn $ "Running with Preview"
       serverStart "public" "127.0.0.1" 3030 serverHandler
+
 
   -- Choose between the 2 modes
   {- Main Mode (with or without dev flag) -}
@@ -190,7 +192,7 @@ buildRules flags = do
 
       phony "textcheck" $ do
             need ["site"]
-            allPosts <- getDirectoryPaths ["*.md"] ["site/posts", "site/post-drafts", "site/projects", "site/project-drafts", "site/team"]
+            allPosts <- getDirectoryPaths ["*.md"] ["site/posts", "site/post-drafts", "site/team"]
             forM_ allPosts $ \aPost -> do
                 command_ [] "hunspell" ["-w", aPost]
                 command_ [] "diction"        [aPost]
@@ -233,12 +235,12 @@ buildRules flags = do
       "public/about.html" %> buildAbout isDevMode aboutCache teamCacheDraft teamCache
 
       -- Find and require every post to be built and News page
-      "posts" ~> requireEntity "posts"  -- requirePosts
+      "posts" ~> requireEntity entitiesDir "posts" "//*.md"
       "public/posts//*.html" %> buildPost postsCache
       "public/news.html" %> buildNews isDevMode postsDraftCache postsCache
 
       -- rule for building Team page and related sub-pages
-      "team" ~> requireEntity "team"
+      "team" ~> requireEntity entitiesDir "team" "//*.md"
       "public/team//*.html" %> buildTeamMember teamCache
 
       -- build the main table of contents
@@ -249,10 +251,10 @@ buildRules flags = do
         False -> return $ ()
         True  -> do
           -- Build Drafts directory for development needs
-          "post-drafts" ~> requireEntity "post-drafts"
+          "post-drafts" ~> requireEntity entitiesDir "post-drafts" "//*.md"
           "public/post-drafts//*.html" %> buildDraftPost postsDraftCache
 
-          "team-drafts" ~> requireEntity "team-drafts"
+          "team-drafts" ~> requireEntity entitiesDir "team-drafts" "//*.md"
           "public/team-drafts//*.html" %> buildTeamMemberDraft teamCacheDraft
 
   want ["site"]
@@ -281,18 +283,7 @@ main = do
     shOpts
     flags
 
-{-# START_FILE app/TH.hs #-}
-module TH (dropPrefix) where
-
-import           Data.Char (toLower)
-
---------------------------------------------------------------------------------
-
-dropPrefix :: Int -> String -> String
-dropPrefix n str =
-  toLower c : later
-    where
-      (c:later) = drop n str
+  forever $ threadDelay 100000
 
 {-# START_FILE app/Builder.hs #-}
 {-# LANGUAGE CPP                       #-}
@@ -307,9 +298,7 @@ dropPrefix n str =
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TemplateHaskell           #-}
 
-module Builder( requireEntity
-              , loadEntity
-              , buildTeamMemberDraft
+module Builder( buildTeamMemberDraft
               , buildDraftPost
               , buildIndex
               , buildOther
@@ -345,7 +334,7 @@ import           Development.Shake
 import           Development.Shake.Classes
 import           Development.Shake.FilePath
 import           Slick
-import           Slick.Build
+import           Slick.Extra
 import           Slick.Pandoc
 import           System.Console.GetOpt
 import           System.Environment
@@ -357,35 +346,6 @@ import           Text.Pandoc.Writers.HTML     (writeHtml5String)
 
 import           Types
 
-------------------------------------------------------------------------------
--- Builder related functions
-
--- | Find specific file and tell Shake to build the corresponding html page
-requireFile :: String -> Action ()
-requireFile path = do
-  need [srcToDest "public" path -<.> "html"]
-
--- | Find all speified entity source files and
---   tell Shake to build corresponding html pages
-requireEntity :: String      -- ^ directory were specified objects live
-              -> Action ()
-requireEntity dir = do
-  entityNames <- fileNames dir
-  need ((\p -> srcToDest "public" p -<.> "html") <$> entityNames)
-
---------------------------------------------------------------------------------
--- FilePaths loaders
-
--- | Get names of the files from `site` subdirectory, embeds into existing path structure
-fileNames :: String -> Action [FilePath]
-fileNames dir =
-  getDirectoryFiles "." ["site/" ++ dir ++ "//*.md"]
-
--- | Get names of the files from provided directory pattern, full path
-fileNamesByPattern :: String -> Action [FilePath]
-fileNamesByPattern pattern' =
-  getDirectoryFiles "." [pattern']
-
 --------------------------------------------------------------------------------
 -- Page Builders
 
@@ -396,8 +356,8 @@ buildIndex :: Bool
            -> FilePath
            -> Action ()
 buildIndex isDevMode postDraftCache postCache out = do
-  posts     <- traverse (postCache         . EntityFilePath) =<< fileNames "posts"
-  posts'    <- traverse (postDraftCache    . EntityFilePath) =<< fileNames "post-drafts"
+  posts     <- traverse (postCache         . EntityFilePath) =<< fileNames "site" "posts"       "//*.md"
+  posts'    <- traverse (postDraftCache    . EntityFilePath) =<< fileNames "site" "post-drafts" "//*.md"
 
   indexTpl  <- compileTemplate' "site/templates/index.html"
 
@@ -420,8 +380,8 @@ buildAbout :: Bool
            -> FilePath
            -> Action ()
 buildAbout isDevMode aboutCache teamCacheDraft teamCache out = do
-  team  <- traverse (teamCache      . EntityFilePath) =<< fileNames "team"
-  team' <- traverse (teamCacheDraft . EntityFilePath) =<< fileNames "team-draft"
+  team  <- traverse (teamCache      . EntityFilePath) =<< fileNames "site" "team"       "//*.md"
+  team' <- traverse (teamCacheDraft . EntityFilePath) =<< fileNames "site" "team-draft" "//*.md"
   about'<- traverse (aboutCache     . EntityFilePath) =<< fileNamesByPattern "site/about.md"
 
   aboutTpl  <- compileTemplate' "site/templates/about.html"
@@ -447,8 +407,8 @@ buildTeam :: Bool
           -> FilePath
           -> Action ()
 buildTeam isDevMode teamCacheDraft teamCache out = do
-  team  <- traverse (teamCache      . EntityFilePath) =<< fileNames "team"
-  team' <- traverse (teamCacheDraft . EntityFilePath) =<< fileNames "team-draft"
+  team  <- traverse (teamCache      . EntityFilePath) =<< fileNames "site" "team"       "//*.md"
+  team' <- traverse (teamCacheDraft . EntityFilePath) =<< fileNames "site" "team-draft" "//*.md"
 
   teamTpl   <- compileTemplate' "site/templates/_components/team-list.html"
 
@@ -468,8 +428,8 @@ buildNews :: Bool
           -> FilePath
           -> Action ()
 buildNews isDevMode postDraftCache postCache out = do
-  posts    <- traverse (postCache      . EntityFilePath) =<< fileNames "posts"
-  posts'   <- traverse (postDraftCache . EntityFilePath) =<< fileNames "post-drafts"
+  posts    <- traverse (postCache      . EntityFilePath) =<< fileNames "site" "posts"       "//*.md"
+  posts'   <- traverse (postDraftCache . EntityFilePath) =<< fileNames "site" "post-drafts" "//*.md"
   indexTpl <- compileTemplate' "site/templates/news.html"
 
   let postsAll    = if isDevMode then posts ++ posts' else posts
@@ -603,8 +563,8 @@ import           Development.Shake
 import           Development.Shake.Classes
 import           Development.Shake.FilePath
 import           GHC.Generics               (Generic)
+import           Slick.Extra
 
-import           TH
 import           Utils
 
 -------------------------------------------------------------------------------
@@ -927,7 +887,6 @@ newtype TeamMemberDraftFilePath =
 
 module Utils
   ( renderToDay
-  , getDirectoryPaths
   ) where
 
 import           Control.Monad
@@ -954,31 +913,15 @@ sortByM f xs =
 renderToDay :: FormatTime t => t -> String
 renderToDay = formatTime defaultTimeLocale "%B %e, %Y"
 
--- | Given a list of extensions and directories,
---   find all files that match, and return full paths.
-getDirectoryPaths :: [FilePath]         -- ^ file pattern like *.md
-                  -> [FilePath]         -- ^ directories to look at
-                  -> Action [FilePath]
-getDirectoryPaths extensions dirs =
-  concat <$> mapM getPaths dirs
-    where
-      getPaths :: FilePath -> Action [FilePath]
-      getPaths dir =
-        fmap (dir </>) <$>
-          getDirectoryFiles dir extensions
-
 {-# START_FILE stack.yaml #-}
 resolver: lts-13.26
+
+packages:
+  - .
 
 allow-newer: true
 
 extra-deps:
-- git: git@github.com:migamake/Slicker.git
-  commit: 18eef28a331dc7353b19ccf63d163bca5e27fcaa
-- git: git@gitlab.com:migamake/shake-watch.git
-  commit: 82cce9707912b50ee03d973bcc47b0cc511b2220
-- git: git@gitlab.com:migamake/slick-live.git
-  commit: a563b66c10b308959808fbb44632c29577287788
 - shake-0.18.3
 - js-dgtable-0.5.2@sha256:f75cb4fa53c88c65794becdd48eb0d3b2b8abd89a3d5c19e87af91f5225c15e4
 - filepattern-0.1.1@sha256:984f43798572e325e9509b3b59fd4ccc2b0f94b8b065585e0505570c98aa1016
@@ -989,6 +932,14 @@ extra-deps:
 - containers-0.5.11.0@sha256:28ad7337057442f75bc689315ab4ec7bdf5e6b2c39668f306672cecd82c02798,16685
 - binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705
 - magic-1.1@sha256:3a31ca1c49fa5f6a857f647471739bd240a6020af6ae43e71fb72201fc482fa2,928
+- git: git@github.com:ChrisPenner/slick.git
+  commit: 1b1be9afb41108234211a0d781c701dde9bbf0c0
+- git: git@gitlab.com:migamake/shake-watch.git
+  commit: 82cce9707912b50ee03d973bcc47b0cc511b2220
+- git: git@gitlab.com:migamake/slick-live.git
+  commit: a563b66c10b308959808fbb44632c29577287788
+- git: git@gitlab.com:migamake/slick-extra.git
+  commit: 3fa920da9ac98d133ae5868ba27dae1cffda241b
 
 {-# START_FILE README.md #-}
 # {{name}}
