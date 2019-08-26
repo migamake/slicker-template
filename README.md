@@ -50,6 +50,24 @@ $ stack new <name of the project> https://gitlab.com/migamake/slick-template/raw
 
 Template provides only Haskell source code, as a part of `Slick`-based generation you need to create template files yourself based on your design of hte site.
 
+If you don't have global config for stack defined in `~/.stack/config.yaml`, you can create it before pulling template with following structure
+```yaml
+templates:
+  params:
+    author-email: email@site.com
+    author-name: Name Surname
+    category: Web
+    copyright: 'Copyright: (c) 2019 Name Surname'
+    github-username: sigrlami
+```
+
+if you prefer not to create you'll need to provide parameters for the repo by hand, like this
+
+```bash
+$ stack new <name of the project> https://gitlab.com/migamake/slick-template/raw/master/simple-slick.hsfiles -p "author-email:value" -p "author-name:value" -p "category:value" -p "copyright:value" -p "github-username:value"
+```
+which is not very confinient
+
 ## Configure
 
 Configuring project for your needs done in 2 ways, by modification of Haskell source code and by adding specific site files like html-templates, css, js required for the project.
@@ -99,6 +117,12 @@ Typically files live in `site` directory where everything outside `templates` fo
     │   └── head.html
     └── team-member.html
 ```
+
+### 3rd party tools
+
+#### Tidy
+
+#### Linkchecker
 
 ## Running
 
