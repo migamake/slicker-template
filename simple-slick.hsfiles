@@ -262,7 +262,8 @@ main = do
     shOpts
     flags
 
-  forever $ threadDelay 100000
+  -- uncomment for proper preview
+  -- forever $ threadDelay 100000
 
 {-# START_FILE app/Builder.hs #-}
 {-# LANGUAGE CPP                       #-}
