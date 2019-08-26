@@ -10,9 +10,9 @@ before_script:
   - git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
   # prepare dependency cache for further reuse
   - export STACK_ROOT=`pwd`/.stack
-  - stack new site simple-slick.hsfiles
-  - cd site/
-  - ls
+  - stack new site.com simple-slick.hsfiles
+  - cp site/ site.com/
+  - cd site.com/
   - stack setup
   - stack install --only-dependencies
   - stack build
