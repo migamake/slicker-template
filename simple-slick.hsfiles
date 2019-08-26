@@ -71,6 +71,8 @@ executables:
     - hashable
     - pandoc
     - directory
+    default-extensions:
+    - OverloadedStrings
 
 {-# START_FILE Setup.hs #-}
 import Distribution.Simple
@@ -82,7 +84,6 @@ main = defaultMain
 {-# LANGUAGE DuplicateRecordFields      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
@@ -267,7 +268,6 @@ main = do
 {-# LANGUAGE DuplicateRecordFields     #-}
 {-# LANGUAGE NamedFieldPuns            #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE Rank2Types                #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
@@ -428,7 +428,6 @@ html5Options =
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE NamedFieldPuns        #-}
-{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskell       #-}
@@ -578,7 +577,6 @@ newtype PostFilePath =
 
 
 {-# START_FILE app/Utils.hs #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 
 module Utils
