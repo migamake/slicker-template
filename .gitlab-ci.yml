@@ -23,7 +23,7 @@ build:
       - _cache
       - .stack
   script:
-    - stack exec -- site
+    - stack exec -- sitecom
   except:
     - master
 
@@ -33,7 +33,7 @@ pages:
       - _cache
       - .stack
   script:
-    - stack exec -- site
+    - stack exec -- sitecom
   artifacts:
     paths:
       - site/public
