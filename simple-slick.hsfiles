@@ -129,7 +129,6 @@ import           System.Environment
 
 -- local modules
 import           Builder
-import           Utils
 
 -------------------------------------------------------------------------------
 
@@ -481,13 +480,6 @@ data IndexWrap =
 
 instance FromJSON IndexWrap
 instance ToJSON IndexWrap
-
-data OptDisqus =
-  OptDisqus
-    { isEnabled      :: Bool
-    , pageUrl        :: String
-    , pageIdentifier :: String
-    }
 
 -- | A JSON serializable representation of a post's metadata
 data Post =
