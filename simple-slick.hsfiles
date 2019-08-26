@@ -74,6 +74,12 @@ executables:
     default-extensions:
     - OverloadedStrings
 
+{-# START_FILE tidy.init #-}
+output-file: /dev/null
+quiet: yes
+markup: no
+drop-empty-elements: no
+
 {-# START_FILE Setup.hs #-}
 import Distribution.Simple
 main = defaultMain
@@ -172,7 +178,7 @@ buildRules flags = do
                , "posts"
                , "public/robots.txt"
                , "public/index.html"
-               , "public/news.html"
+               , "public/posts.html"
                , "public/about.html"
                , "public/404.html"
                ]
@@ -205,9 +211,7 @@ buildRules flags = do
                                   , "site/js//*"
                                   , "site/fonts//*"
                                   , "site/images//*"
-                                  , "site/presi//*.pdf"
-                                  , "site/robots.txt"
-                                  , "site/humans.txt" ]
+                                  , "site/robots.txt"]
           need (("public" </>) . dropDirectory1 <$> staticFiles)
 
       -- Require all static assets
@@ -216,18 +220,17 @@ buildRules flags = do
         "public/js//*",
         "public/fonts//*",
         "public/images//*",
-        "public/robots.txt",
-        "public/humans.txt"
+        "public/robots.txt"
         ] |%> \out -> do
           copyFileChanged ("site" </> dropDirectory1 out) out
 
       -- rule for building About page
       "public/about.html" %> buildAbout aboutCache
 
-      -- Find and require every post to be built and News page
+      -- Find and require every post to be built and Blog page
       "posts" ~> requireEntity entitiesDir "posts" "//*.md"
       "public/posts//*.html" %> buildPost postsCache
-      "public/news.html" %> buildNews postsCache
+      "public/posts.html" %> buildPosts postsCache
 
       -- build the main table of contents
       "public/*.html"     %> buildOther
@@ -275,7 +278,7 @@ main = do
 
 module Builder( buildIndex
               , buildOther
-              , buildNews
+              , buildPosts
               , buildAbout
               , buildPost
               , myMarkdownOptions
@@ -356,19 +359,19 @@ buildAbout  aboutCache out = do
   writeFile' out aboutHTML
 
 -- | Given a cache of posts this will build a table of contents
-buildNews :: (EntityFilePath PostFilePath -> Action Post)
+buildPosts :: (EntityFilePath PostFilePath -> Action Post)
           -> FilePath
           -> Action ()
-buildNews postCache out = do
+buildPosts postCache out = do
   posts    <- traverse (postCache . EntityFilePath) =<< fileNames "site" "posts" "//*.md"
-  indexTpl <- compileTemplate' "site/templates/news.html"
+  indexTpl <- compileTemplate' "site/templates/posts.html"
 
   let postsSorted = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) posts
-      newsWrap    = NewsWrap
-                      { news    = postsSorted
+      blogWrap    = BlogWrap
+                      { blog    = postsSorted
                       }
-      newsHTML = T.unpack $ substitute indexTpl (toJSON newsWrap)
-  writeFile' out newsHTML
+      blogHTML = T.unpack $ substitute indexTpl (toJSON blogWrap)
+  writeFile' out blogHTML
 
 -- | Build a html file for a given post from a cache of posts.
 buildPost :: (EntityFilePath PostFilePath -> Action Post)
@@ -528,13 +531,13 @@ instance ToJSON Post where
       , "content"     A..= cn
       ]
 
-data NewsWrap =
-  NewsWrap
-    { news :: [Post]
+data BlogWrap =
+  BlogWrap
+    { blog :: [Post]
     } deriving (Generic, Show)
 
-instance FromJSON NewsWrap
-instance ToJSON NewsWrap
+instance FromJSON BlogWrap
+instance ToJSON BlogWrap
 
 -- | Represents raw About page
 data About =
