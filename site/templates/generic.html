@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head profile="http://www.w3.org/2005/10/profile">
+        {{>site/templates/_shared/head.html}}
+        
+        <title>Atreides Mining, Inc - {{title}}</title>
+
+    </head>
+
+    <body class="home">
+        {{>site/templates/_shared/header.html}}
+
+        <section class="page-title fog">
+            <h1>{{title}}</h1>
+        </section>
+
+        <div id="page">
+            <div class="container">
+              <h1 class="title">{{description}}</h1>
+              <div class="article-body content">
+                  {{{content}}}
+              </div>
+            </div>
+        </div> 
+        {{>site/templates/_shared/footer.html}}
+    </body>
+</html>

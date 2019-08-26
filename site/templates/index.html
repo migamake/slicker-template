@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head profile="http://www.w3.org/2005/10/profile">
+    <link rel="stylesheet" type="text/css" href="/css/owl.carousel.min.css" media="all">
+    {{>site/templates/_shared/head.html}}
+
+    <title>Atreides Mining, Inc</title>
+
+  <body class="home">
+    {{>site/templates/_shared/header.html}}
+    <main class="content" data-aos="fade-down">
+      <section class="hero hero-index is-primary fog">
+        <!-- featured area -->
+      </section>
+      <section id="news" class="section">
+        <div class="container">
+          <div class="content-wrapper">
+            <div class="columns">
+              <div class="column">
+                {{>site/templates/_components/post-list.html}}
+                <div class="more-posts">
+                  <a href="/news.html">Older News</a>
+                </div>
+              </div>
+              <div class="column is-one-third-desktop">
+                <div class="featured-news-list" id="do-stick" data-aos="zoom-in-down" data-aos-delay="200">
+                  <div class="title">
+                    Featured Posts
+                  </div>
+                  {{>site/templates/_components/post-list-featured.html}}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    {{>site/templates/_shared/footer.html}}
+    <script type="application/javascript" src="/js/jquery-3.3.1.min.js"></script>
+    <script type="application/javascript" src="/js/owl.carousel.min.js"></script>
+    <script type="application/javascript" src="/js/jquery.sticky-kit.min.js"></script>
+
+    <script type="application/javascript">
+      document.addEventListener('DOMContentLoaded', () => {
+        site.indexPage();
+      });
+    </script>

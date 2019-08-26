@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head profile="http://www.w3.org/2005/10/profile">
+        {{>site/templates/_shared/head.html}}
+
+        <title>Atreides Mining, Inc - About Us</title>
+    </head>
+
+    <body class="home">
+        {{>site/templates/_shared/header.html}}
+
+    <section class="page-title fog">
+        <h1>About Us</h1>
+        <p class="subtitle">
+            Bringing new opportunities to new worlds!
+        </p>
+    </section>
+
+
+
+    <div class="container">
+        <div class="overview">
+            <div class="columns">
+                <div class="column">
+
+                    <h3 id="about-the-company">About the company</h3>
+                    <p>Atreides Mining, Inc has been <a href="#">established on Caladan in 2012</a> to pursue Resource Mining opportunities.</p>
+
+
+                </div>
+            </div>
+            </div>
+    </div>
+
+    {{>site/templates/_shared/footer.html}}
+    <script type="application/javascript">
+        document.addEventListener('DOMContentLoaded', () => {
+          site.aboutPage();
+        });
+      </script>

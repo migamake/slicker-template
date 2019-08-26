@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head profile="http://www.w3.org/2005/10/profile">
+        {{>site/templates/_shared/head.html}}
+        
+        <title>Atreides Mining - Company News</title>
+    </head>
+
+    <body class="home">
+        {{>site/templates/_shared/header.html}}
+
+        <section class="page-title fog">
+            <h1>News</h1>
+            <p class="subtitle">
+                Company News and Events.
+            </p>
+        </section>
+        <div class="container">
+            <div class="post-list post-list-inner">
+                {{#news}}
+                    <div class="post">
+
+                        <div class="image">
+                            <a href="{{url}}">
+                                {{#image}}
+                                    <img class="post-image" src="images/abstract/{{image}}" alt="{{title}}"
+                                        title="{{title}}" />
+                                {{/image}}
+                            </a>
+                        </div>
+                        <div class="date">
+                            {{date}}
+                        </div>
+                        <h1>
+                            <a href="{{url}}">{{title}} </a>
+                        </h1>
+                        <p>
+                            {{description}}
+                        </p>
+                        <div class="author">
+                            <i class="fa fa-user"></i> {{authors}}
+                        </div>
+
+                    </div>
+                {{/news}}
+            </div>
+
+        </div>
+        {{>site/templates/_shared/footer.html}}

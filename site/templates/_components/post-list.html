@@ -1,0 +1,28 @@
+<!-- Post item used inside Index -->
+<div class="post-list">
+    {{#posts}}
+    <div class="post" data-aos="fade-right" data-aos-delay="100" data-aos-offset="150">
+            
+        <div class="image">
+            <a href="{{url}}">
+                {{#image}}
+                <img class="post-image" src="images/abstract/{{image}}" alt="{{title}}"  title="{{title}}" />
+                {{/image}}
+            </a>
+        </div>
+        <div class="date">
+                {{date}}
+            </div>
+        <h1>
+            <a href="{{url}}">{{title}} </a>
+        </h1>
+        <p>
+            {{description}}
+        </p>
+        <div class="author">
+               <i class="fa fa-user"></i> {{authors}}
+        </div>
+        
+    </div>
+    {{/posts}}
+</div>
