@@ -1,3 +1,31 @@
+{-# START_FILE stack.yaml #-}
+resolver: lts-13.26
+
+packages:
+  - .
+
+allow-newer: true
+
+extra-deps:
+- shake-0.18.3
+- js-dgtable-0.5.2@sha256:f75cb4fa53c88c65794becdd48eb0d3b2b8abd89a3d5c19e87af91f5225c15e4
+- filepattern-0.1.1@sha256:984f43798572e325e9509b3b59fd4ccc2b0f94b8b065585e0505570c98aa1016
+- extra-1.6.17@sha256:af90eeb95b08ac1683c466efd9d4b8d9d426a547eb5fa46af87f615bb67dfae0,2705
+- heaps-0.3.6.1@sha256:7928b759ca5180d35722c45948c0bde264229f3c99c1888188a3d9285f13d3d2,1340
+- Cabal-2.2.0.1@sha256:2a80d8fb655474f0eaeb20434c47f64f84e6302e55973056f00df8ca050b9683,20037
+- fsnotify-0.3.0.1@sha256:58bb530d7acf93eb4ed69473e32a1485581815f04f69dfc8a278523781ba49dd,2988
+- containers-0.5.11.0@sha256:28ad7337057442f75bc689315ab4ec7bdf5e6b2c39668f306672cecd82c02798,16685
+- binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705
+- magic-1.1@sha256:3a31ca1c49fa5f6a857f647471739bd240a6020af6ae43e71fb72201fc482fa2,928
+- git: git@github.com:ChrisPenner/slick.git
+  commit: 1b1be9afb41108234211a0d781c701dde9bbf0c0
+- git: git@gitlab.com:migamake/shake-watch.git
+  commit: 82cce9707912b50ee03d973bcc47b0cc511b2220
+- git: git@gitlab.com:migamake/slick-live.git
+  commit: a563b66c10b308959808fbb44632c29577287788
+- git: git@gitlab.com:migamake/slick-extra.git
+  commit: 3fa920da9ac98d133ae5868ba27dae1cffda241b
+
 {-# START_FILE package.yaml #-}
 name:                {{name}}
 version:             0.1.0.0
@@ -108,22 +136,19 @@ import           Utils
 -- | List our custom keys that we need to manage additional behaviour
 data Flags =
     Preview     -- ^ key to run Warp server
-  | Development -- ^ key to run in Development mode, to include drafts objects
+ -- SomeOtherKEy
   deriving (Eq)
 
 -- | Specific flags for Shake to allow custom keys required for specific logic
 flags :: forall a. [OptDescr (Either a Flags)]
 flags =
   [ Option "" ["preview"      ] (NoArg $ Right Preview    ) "running as preview"
-  , Option "" ["dev"          ] (NoArg $ Right Development) "run generator including drafts"
   ]
 
 -- | Rules for the Shake builder that define site construction workflow
 --  (should live in a separate function that can be used as an argument in other functions)
 buildRules :: Foldable t => t Flags -> Rules ()
 buildRules flags = do
-  -- Mode aliases for quick reference
-  let isDevMode     = Development `elem`    flags
   let isPreviewMode = Preview     `elem`    flags
 
   action $ runAfter $ putStrLn "RUNNING AFTER!!!"
@@ -132,53 +157,29 @@ buildRules flags = do
       putStrLn $ "Running with Preview"
       serverStart "public" "127.0.0.1" 3030 serverHandler
 
-
-  -- Choose between the 2 modes
-  {- Main Mode (with or without dev flag) -}
   id $ do
-      liftIO $ putStrLn $
-        if isDevMode
-        then "Running in Development mode\n"
-        else "Running in Production mode\n"
+      liftIO $ putStrLn $ "Running in Production mode\n"
 
       -- Set up caches
-
-      -- we use single input entity directory but
-      -- loadEntity function consumes this variable so they can be different
-      -- if needed
       let entitiesDir = "site"
 
       aboutCache         <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
-      teamCache          <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
-      teamCacheDraft     <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
       postsCache         <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
-      postsDraftCache    <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
 
       want ["lint"]
 
       -- Require all the things we need to build the whole site
       phony "site" $ do
           -- Required folders and pages that should be part of output
-          let reqDir =
+          let reqDirectories =
                [ "static"
                , "posts"
-               , "team"
                , "public/robots.txt"
                , "public/index.html"
                , "public/news.html"
                , "public/about.html"
                , "public/404.html"
-               , "public/privacy.html"
                ]
-
-          let reqDirectories =
-                case isDevMode of
-                  False -> reqDir
-                  True  ->
-                    reqDir ++
-                      [ "post-drafts"
-                      , "team-drafts"
-                      ]
 
           need reqDirectories
 
@@ -188,14 +189,7 @@ buildRules flags = do
 
       "linkchecker.out" ~> do
           need ["site"]
-          command_ [Cwd "public"] "linkchecker" ["--no-status", "."] -- "--file-output", "text/utf-8/linkchecker.out", "-quiet", "."]
-
-      phony "textcheck" $ do
-            need ["site"]
-            allPosts <- getDirectoryPaths ["*.md"] ["site/posts", "site/post-drafts", "site/team"]
-            forM_ allPosts $ \aPost -> do
-                command_ [] "hunspell" ["-w", aPost]
-                command_ [] "diction"        [aPost]
+          command_ [Cwd "public"] "linkchecker" ["--no-status", "."]
 
       phony "tidy" $ do
           need ["site"]
@@ -207,7 +201,7 @@ buildRules flags = do
 
       -- Linting
       phony "lint" $ do
-          need ["tidy", "linkchecker.out", "textcheck"]
+          need ["tidy", "linkchecker.out"]
 
       phony "static" $ do
           staticFiles <-
@@ -232,30 +226,16 @@ buildRules flags = do
           copyFileChanged ("site" </> dropDirectory1 out) out
 
       -- rule for building About page
-      "public/about.html" %> buildAbout isDevMode aboutCache teamCacheDraft teamCache
+      "public/about.html" %> buildAbout aboutCache
 
       -- Find and require every post to be built and News page
       "posts" ~> requireEntity entitiesDir "posts" "//*.md"
       "public/posts//*.html" %> buildPost postsCache
-      "public/news.html" %> buildNews isDevMode postsDraftCache postsCache
-
-      -- rule for building Team page and related sub-pages
-      "team" ~> requireEntity entitiesDir "team" "//*.md"
-      "public/team//*.html" %> buildTeamMember teamCache
+      "public/news.html" %> buildNews postsCache
 
       -- build the main table of contents
       "public/*.html"     %> buildOther
-      "public/index.html" %> buildIndex isDevMode postsDraftCache postsCache
-
-      case isDevMode of
-        False -> return $ ()
-        True  -> do
-          -- Build Drafts directory for development needs
-          "post-drafts" ~> requireEntity entitiesDir "post-drafts" "//*.md"
-          "public/post-drafts//*.html" %> buildDraftPost postsDraftCache
-
-          "team-drafts" ~> requireEntity entitiesDir "team-drafts" "//*.md"
-          "public/team-drafts//*.html" %> buildTeamMemberDraft teamCacheDraft
+      "public/index.html" %> buildIndex postsCache
 
   want ["site"]
 
@@ -298,12 +278,8 @@ main = do
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TemplateHaskell           #-}
 
-module Builder( buildTeamMemberDraft
-              , buildDraftPost
-              , buildIndex
+module Builder( buildIndex
               , buildOther
-              , buildTeam
-              , buildTeamMember
               , buildNews
               , buildAbout
               , buildPost
@@ -350,20 +326,14 @@ import           Types
 -- Page Builders
 
 -- | Given a cache of posts this will build a table of contents
-buildIndex :: Bool
-           -> (EntityFilePath PostDraftFilePath -> Action Post)
-           -> (EntityFilePath PostFilePath -> Action Post)
+buildIndex :: (EntityFilePath PostFilePath -> Action Post)
            -> FilePath
            -> Action ()
-buildIndex isDevMode postDraftCache postCache out = do
-  posts     <- traverse (postCache         . EntityFilePath) =<< fileNames "site" "posts"       "//*.md"
-  posts'    <- traverse (postDraftCache    . EntityFilePath) =<< fileNames "site" "post-drafts" "//*.md"
-
+buildIndex postCache out = do
+  posts     <- traverse (postCache . EntityFilePath) =<< fileNames "site" "posts" "//*.md"
   indexTpl  <- compileTemplate' "site/templates/index.html"
 
-  let postsAll = if isDevMode then posts ++ posts' else posts
-
-  let postsSorted      = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) postsAll
+  let postsSorted      = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) posts
       postsFeatured    = Prelude.take 5 $ catMaybes $ Prelude.map (\p -> if (featured p) then (Just p) else Nothing ) postsSorted
 
   let indexWrap = IndexWrap { posts         = postsSorted
@@ -373,25 +343,15 @@ buildIndex isDevMode postDraftCache postCache out = do
   writeFile' out indexHTML
 
 -- | Builds about html page
-buildAbout :: Bool
-           -> (EntityFilePath AboutFilePath -> Action About)
-           -> (EntityFilePath TeamMemberDraftFilePath -> Action TeamMember)
-           -> (EntityFilePath TeamMemberFilePath -> Action TeamMember)
+buildAbout :: (EntityFilePath AboutFilePath -> Action About)
            -> FilePath
            -> Action ()
-buildAbout isDevMode aboutCache teamCacheDraft teamCache out = do
-  team  <- traverse (teamCache      . EntityFilePath) =<< fileNames "site" "team"       "//*.md"
-  team' <- traverse (teamCacheDraft . EntityFilePath) =<< fileNames "site" "team-draft" "//*.md"
-  about'<- traverse (aboutCache     . EntityFilePath) =<< fileNamesByPattern "site/about.md"
-
+buildAbout  aboutCache out = do
+  about'<- traverse (aboutCache . EntityFilePath) =<< fileNamesByPattern "site/about.md"
   aboutTpl  <- compileTemplate' "site/templates/about.html"
 
-  let teamAll    = if isDevMode then team ++ team' else team
-      teamSorted = sortBy (\p1 p2 -> compare (tmemPriority p1) (tmemPriority p2)) teamAll
-
   let about''   = head about'
-      aboutWrap = AboutWrap { abTeam        = teamSorted
-                            , abContent     = abrwContent about''
+      aboutWrap = AboutWrap { abContent     = abrwContent about''
                             , abUrl         = abrwUrl about''
                             , abTitle       = abrwTitle about''
                             , abDescription = abrwDescription about''
@@ -400,40 +360,15 @@ buildAbout isDevMode aboutCache teamCacheDraft teamCache out = do
 
   writeFile' out aboutHTML
 
--- | Builds team members html page
-buildTeam :: Bool
-          -> (EntityFilePath TeamMemberDraftFilePath -> Action TeamMember)
-          -> (EntityFilePath TeamMemberFilePath -> Action TeamMember)
-          -> FilePath
-          -> Action ()
-buildTeam isDevMode teamCacheDraft teamCache out = do
-  team  <- traverse (teamCache      . EntityFilePath) =<< fileNames "site" "team"       "//*.md"
-  team' <- traverse (teamCacheDraft . EntityFilePath) =<< fileNames "site" "team-draft" "//*.md"
-
-  teamTpl   <- compileTemplate' "site/templates/_components/team-list.html"
-
-  let teamAll    = if isDevMode then team ++ team' else team
-      teamSorted = sortBy (\p1 p2 -> compare (tmemPriority p1) (tmemPriority p2)) teamAll
-
-  let teamWrap   = TeamWrap
-                     { team = teamSorted
-                     }
-      teamHtml = T.unpack $ substitute teamTpl (toJSON teamWrap)
-  writeFile' out teamHtml
-
 -- | Given a cache of posts this will build a table of contents
-buildNews :: Bool
-          -> (EntityFilePath PostDraftFilePath -> Action Post)
-          -> (EntityFilePath PostFilePath -> Action Post)
+buildNews :: (EntityFilePath PostFilePath -> Action Post)
           -> FilePath
           -> Action ()
-buildNews isDevMode postDraftCache postCache out = do
-  posts    <- traverse (postCache      . EntityFilePath) =<< fileNames "site" "posts"       "//*.md"
-  posts'   <- traverse (postDraftCache . EntityFilePath) =<< fileNames "site" "post-drafts" "//*.md"
+buildNews postCache out = do
+  posts    <- traverse (postCache . EntityFilePath) =<< fileNames "site" "posts" "//*.md"
   indexTpl <- compileTemplate' "site/templates/news.html"
 
-  let postsAll    = if isDevMode then posts ++ posts' else posts
-      postsSorted = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) postsAll
+  let postsSorted = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) posts
       newsWrap    = NewsWrap
                       { news    = postsSorted
                       }
@@ -450,39 +385,6 @@ buildPost postCache out = do
   post <- postCache (EntityFilePath srcPath)
   template <- compileTemplate' "site/templates/post.html"
   writeFile' out . T.unpack $ substitute template (toJSON post)
-
--- | Build a html file for a given draft post from a cache of drafts.
-buildDraftPost :: (EntityFilePath PostDraftFilePath -> Action Post)
-               -> FilePath
-               -> Action ()
-buildDraftPost postCache out = do
-  let srcPath = destToSrc "site" out -<.> "md"
-      postURL = srcToURL srcPath
-  post <- postCache (EntityFilePath srcPath)
-  template <- compileTemplate' "site/templates/post.html"
-  writeFile' out . T.unpack $ substitute template (toJSON post)
-
--- | Build an html file for a given team member from a cache of members.
-buildTeamMember :: (EntityFilePath TeamMemberFilePath -> Action TeamMember)
-                -> FilePath
-                -> Action ()
-buildTeamMember tmCache out = do
-  let srcPath = destToSrc "site" out -<.> "md"
-      tmURL = srcToURL srcPath
-  tm  <- tmCache (EntityFilePath srcPath)
-  tpl <- compileTemplate' "site/templates/team-member.html"
-  writeFile' out . T.unpack $ substitute tpl (toJSON tm)
-
--- | Builds team member draft html page
-buildTeamMemberDraft :: (EntityFilePath TeamMemberDraftFilePath -> Action TeamMember)
-                     -> FilePath
-                     -> Action ()
-buildTeamMemberDraft tmCache out = do
-  let srcPath = destToSrc "site" out -<.> "md"
-      tmURL   = srcToURL srcPath
-  tm  <- tmCache (EntityFilePath srcPath)
-  tpl <- compileTemplate' "site/templates/team-member.html"
-  writeFile' out . T.unpack $ substitute tpl (toJSON tm)
 
 -- | Builds any other html page encountered during execution
 buildOther filename = do
@@ -647,179 +549,6 @@ data NewsWrap =
 instance FromJSON NewsWrap
 instance ToJSON NewsWrap
 
--- | Represents valid sponsors
-data Sponsor =
-    Migamake
-  | Intellishore
-  | JusPay
-  | Dolla
-  deriving (Generic, Eq, Ord)
-
-instance Show Sponsor where
-  show Intellishore = "Intellishore Corp."
-  show Migamake     = "Atreides Mining, Inc"
-  show JusPay       = "JusPay Co."
-  show Dolla        = "Dolla.org"
-
--- | Get URL to project sponsor's page
-sponsorURL :: Sponsor -> String
-sponsorURL Migamake     = "https://www.migamake.com"
-sponsorURL Intellishore = "https://www.intellishorecorp.com"
-sponsorURL JusPay       = "https://www.juspay.in"
-sponsorURL Dolla        = "https://www.dolla.org"
-
-instance Read Sponsor where
-  readsPrec _ = asReader (readSponsor . T.pack)
-    where
-      asReader :: (String -> Either String Sponsor) -> ReadS Sponsor
-      asReader f s = case f s of
-                       Right v   -> [(v, "")]
-                       Left  err -> []
-
--- | Helper function for reading sponsor from either String and JSON
-readSponsor :: T.Text -> Either String Sponsor
-readSponsor = recognize . T.toLower
-  where
-    recognize "own"          = Right Migamake
-    recognize "migamake"     = Right Migamake
-    recognize "intellishore" = Right Intellishore
-    recognize "juspay"       = Right JusPay
-    recognize "dolla"        = Right Dolla
-    recognize x              = Left $ "Unknown sponsor:" <> show x
-
-instance FromJSON Sponsor where
-  parseJSON (String s) =
-    case readSponsor s of
-      Right r -> return r
-      Left  e -> fail e
-  parseJSON invalid = typeMismatch "Sponsor" invalid
-
-instance ToJSON Sponsor where
-  toEncoding = string . show
-
--- | Represents Project page
-data Project =
-  Project
-    { projTitle       :: String
-    , projAuthors     :: [T.Text]
-    , projDate        :: UTCTime
-    , projLink        :: Maybe String  -- ^ external link to a project
-    , projPriority    :: String  -- TODO: This should be Int, but Slick converts number meta as a string value "N" which leads to typecheck error
-    , projTags        :: [T.Text]
-    , projStatus      :: String
-    , projSponsor     :: Sponsor
-    , projDescription :: String
-    , projImage       :: String
-    , projFeatured    :: Bool
-        -- internally predefined by Slick
-    , projUrl         :: String        -- ^ internal link to a project
-    , projContent     :: String
-    } deriving (Generic, Eq, Ord, Show)
-
-
--- | SB: Almost everything dumb parsed by Slick as String
---   we need to write custom parser by hand to overhaul needed types and conversions
-instance FromJSON Project where
-  parseJSON =
-    withObject "metadata" $ \o -> do
-      title       <- o .: "title"
-      authors'    <- o .: "authors"
-      date'       <- o .: "date"
-      link        <- o .: "link"
-      priority    <- o .: "priority"
-      tags        <- o .: "tags"
-      status      <- o .: "status"
-      sponsor     <- o .: "sponsor"
-      description <- o .: "description"
-      image       <- o .: "image"
-      featured    <- o .: "featured"
-      url         <- o .: "url"
-      content     <- o .: "content"
-
-      let authors = T.splitOn "," authors'
-
-      -- SB: for some reason we see doubled FromJSON -> ToJSON conversion, so
-      --     for now we need to check for 2 possible date formats
-      let dateM = parseTimeM True defaultTimeLocale "%Y-%m-%d" date'
-      let date  =  case dateM of
-                     Nothing -> parseTimeOrError True defaultTimeLocale "%B %e, %Y" date'
-                     Just tm -> tm
-
-      return $
-        Project title authors date link priority tags status sponsor description image featured url content
-
--- TODO: Sergey, please use record syntax here for ease of reading
-instance ToJSON Project where
-  toJSON (Project tl au dt ln pr tg st sp ds im fe ul cn) =
-    A.object
-      [ "title"       A..= tl
-      , "authors"     A..= T.intercalate "," au
-      , "date"        A..= (renderToDay dt)
-      , "link"        A..= ln
-      , "priority"    A..= pr
-      , "tags"        A..= tg
-      , "status"      A..= st
-      , "sponsor"     A..= sp
-      , "sponsorLink" A..= sponsorURL sp  -- SB: this field is not part of data type
-      , "description" A..= ds
-      , "image"       A..= im
-      , "featured"    A..= fe
-      , "url"         A..= ul
-      , "content"     A..= cn
-      ]
-
-data ProjectsWrap =
-  ProjectsWrap
-    { projects :: [Project]
-    } deriving (Generic, Show)
-
-instance FromJSON ProjectsWrap
-instance ToJSON ProjectsWrap
-
-data TeamMember =
-  TeamMember
-   { tmemFunction :: String
-   , tmemRole     :: String
-   , tmemPriority :: String -- TODO: This should be Int, but Slick converts number meta as a string value "N" which leads to typecheck error
-   , tmemName     :: String
-   , tmemImage    :: String
-      -- internally predefined by Slick
-   , tmemUrl      :: String
-   , tmemContent  :: T.Text
-   } deriving (Generic, Eq, Ord, Show)
-
-instance FromJSON TeamMember where
-  parseJSON =
-    withObject "metadata" $ \o -> do
-      tmemFunction <- o .: "function"
-      tmemRole     <- o .: "role"
-      tmemPriority <- o .: "priority"
-      tmemName     <- o .: "name"
-      tmemImage    <- o .: "image"
-      tmemUrl      <- o .: "url"
-      tmemContent  <- o .: "content"
-      return $ TeamMember{..}
-
-instance ToJSON TeamMember where
-  toJSON (TeamMember fn rl pr nm im url cn) =
-    A.object
-      [ "function"  A..= fn
-      , "role"      A..= rl
-      , "priority"  A..= pr
-      , "name"      A..= nm
-      , "image"     A..= im
-      , "url"       A..= url
-      , "content"   A..= cn -- (T.init . T.tail $ cn) -- SB: Ugly hack, keeps <p> for teams for uknown reason, remove quotation
-      ]
-
-data TeamWrap =
-  TeamWrap
-    { team :: [TeamMember]
-    } deriving (Generic, Show)
-
-instance FromJSON TeamWrap
-instance ToJSON TeamWrap
-
 -- | Represents raw About page
 data About =
   About
@@ -839,7 +568,6 @@ data AboutWrap =
   AboutWrap
     { abTitle       :: String
     , abDescription :: String
-    , abTeam        :: [TeamMember]
     -- internally predefined by Slick
     , abUrl         :: String
     , abContent     :: String
@@ -858,26 +586,6 @@ newtype AboutFilePath =
 
 newtype PostFilePath =
   PostFilePath String
-  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
-
-newtype PostDraftFilePath =
-  PostDraftFilePath String
-  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
-
-newtype ProjectFilePath =
-  ProjectFilePath String
-  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
-
-newtype ProjectDraftFilePath =
-  ProjectDraftFilePath String
-  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
-
-newtype TeamMemberFilePath =
-  TeamMemberFilePath String
-  deriving (Show, Eq, Generic, Hashable, Binary, NFData)
-
-newtype TeamMemberDraftFilePath =
-  TeamMemberDraftFilePath String
   deriving (Show, Eq, Generic, Hashable, Binary, NFData)
 
 
@@ -912,34 +620,6 @@ sortByM f xs =
 -- | Render timestamp to the format required by page design
 renderToDay :: FormatTime t => t -> String
 renderToDay = formatTime defaultTimeLocale "%B %e, %Y"
-
-{-# START_FILE stack.yaml #-}
-resolver: lts-13.26
-
-packages:
-  - .
-
-allow-newer: true
-
-extra-deps:
-- shake-0.18.3
-- js-dgtable-0.5.2@sha256:f75cb4fa53c88c65794becdd48eb0d3b2b8abd89a3d5c19e87af91f5225c15e4
-- filepattern-0.1.1@sha256:984f43798572e325e9509b3b59fd4ccc2b0f94b8b065585e0505570c98aa1016
-- extra-1.6.17@sha256:af90eeb95b08ac1683c466efd9d4b8d9d426a547eb5fa46af87f615bb67dfae0,2705
-- heaps-0.3.6.1@sha256:7928b759ca5180d35722c45948c0bde264229f3c99c1888188a3d9285f13d3d2,1340
-- Cabal-2.2.0.1@sha256:2a80d8fb655474f0eaeb20434c47f64f84e6302e55973056f00df8ca050b9683,20037
-- fsnotify-0.3.0.1@sha256:58bb530d7acf93eb4ed69473e32a1485581815f04f69dfc8a278523781ba49dd,2988
-- containers-0.5.11.0@sha256:28ad7337057442f75bc689315ab4ec7bdf5e6b2c39668f306672cecd82c02798,16685
-- binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705
-- magic-1.1@sha256:3a31ca1c49fa5f6a857f647471739bd240a6020af6ae43e71fb72201fc482fa2,928
-- git: git@github.com:ChrisPenner/slick.git
-  commit: 1b1be9afb41108234211a0d781c701dde9bbf0c0
-- git: git@gitlab.com:migamake/shake-watch.git
-  commit: 82cce9707912b50ee03d973bcc47b0cc511b2220
-- git: git@gitlab.com:migamake/slick-live.git
-  commit: a563b66c10b308959808fbb44632c29577287788
-- git: git@gitlab.com:migamake/slick-extra.git
-  commit: 3fa920da9ac98d133ae5868ba27dae1cffda241b
 
 {-# START_FILE README.md #-}
 # {{name}}

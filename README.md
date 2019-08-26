@@ -60,7 +60,7 @@ Slick package resuses [Shake](https://shakebuild.com/) build system. In order to
 
 ### HTML/CSS/JS/
 
-Typically files live in `site` directory where everything outside `templates` folder will be considered either content or static file. Everything with `.md` extension wil be converted to `.html` if not specified differently. Here is example structure  mapped to the current generator configuration.
+Typically files live in `site` directory where everything outside `templates` folder will be considered either content or static file. Everything with `.md` extension wil be converted to `.html` if not specified differently. Here is example structure  mapped to the current generator configuration. You can download example content directory from source repository amd put along with your template.
 
 ```
 ├── 404.md
