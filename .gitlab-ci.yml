@@ -1,7 +1,7 @@
 image: "haskell:latest"
 
 before_script:
-  - apt-get update && apt-get install -y make openssh-client xz-utils
+  - apt-get update && apt-get install -y make openssh-client xz-utils tidy linkchecker
   # add woraround to properly fetch packages as git repos from Github, Gitlab
   - ssh-keygen -t rsa -C "ci@migamake.com" -f ~/.ssh/id_rsa
   - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
