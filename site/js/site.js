@@ -82,7 +82,7 @@ function formatPostDates(){
     d.setAttribute("data-date", datetime);
    });
 }
-  function featureNews() {
+  function featurePosts() {
     $("#do-stick").stick_in_parent({
       offset_top: 20
     });
@@ -114,7 +114,7 @@ function formatPostDates(){
     },
     indexPage: function () {
       initHeroCarousel();
-      featureNews();
+      featurePosts();
     },
     aboutPage: function(){
       initProjectCarousel();

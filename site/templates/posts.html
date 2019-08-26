@@ -3,22 +3,22 @@
 
     <head profile="http://www.w3.org/2005/10/profile">
         {{>site/templates/_shared/head.html}}
-        
-        <title>Atreides Mining - Company News</title>
+
+        <title>Atreides Mining - Company Blog</title>
     </head>
 
     <body class="home">
         {{>site/templates/_shared/header.html}}
 
         <section class="page-title fog">
-            <h1>News</h1>
+            <h1>Company Blog</h1>
             <p class="subtitle">
-                Company News and Events.
+                Company Posts and Events.
             </p>
         </section>
         <div class="container">
             <div class="post-list post-list-inner">
-                {{#news}}
+                {{#blog}}
                     <div class="post">
 
                         <div class="image">
@@ -43,7 +43,7 @@
                         </div>
 
                     </div>
-                {{/news}}
+                {{/blog}}
             </div>
 
         </div>
