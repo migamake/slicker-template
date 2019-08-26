@@ -97,8 +97,6 @@ import           Control.Monad                 (forM_, forever, liftM, mzero,
 import           Data.Aeson                    as A
 import           Data.Aeson.Lens
 import           Data.Aeson.TH
-import           Data.Aeson.TH                 (Options (..), defaultOptions,
-                                                deriveJSON)
 import           Data.Char
 import           Data.Either.Utils
 import           Data.Function                 (on)
@@ -114,7 +112,6 @@ import           Data.Time
 import           Development.Shake
 import           Development.Shake.Classes
 import           Development.Shake.Database
-import           Development.Shake.FilePath    (toStandard)
 import           Development.Shake.FilePath
 import           Development.Shake.Util        (shakeArgsPruneWith)
 import           Development.Shake.Watch
@@ -135,13 +132,12 @@ import           Builder
 -- | List our custom keys that we need to manage additional behaviour
 data Flags =
     Preview     -- ^ key to run Warp server
- -- SomeOtherKEy
   deriving (Eq)
 
 -- | Specific flags for Shake to allow custom keys required for specific logic
 flags :: forall a. [OptDescr (Either a Flags)]
 flags =
-  [ Option "" ["preview"      ] (NoArg $ Right Preview    ) "running as preview"
+  [ Option "" ["preview"] (NoArg $ Right Preview) "running as preview"
   ]
 
 -- | Rules for the Shake builder that define site construction workflow
@@ -153,7 +149,7 @@ buildRules flags = do
   action $ runAfter $ putStrLn "RUNNING AFTER!!!"
   when isPreviewMode $ do
     action $ runAfter $ liftIO $ void . forkIO $ do
-      putStrLn $ "Running with Preview"
+      putStrLn "Running with Preview"
       serverStart "public" "127.0.0.1" 3030 serverHandler
 
   id $ do
@@ -248,7 +244,7 @@ runShakeBuilder shOpts flags =
     shOpts (pruner "public") flags $
       \flags targets -> do
         let rls = Just $ buildRules flags
-        return $ rls
+        return rls
 
 main :: IO ()
 main = do
