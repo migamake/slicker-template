@@ -1,6 +1,6 @@
 # Slick Template
 
-This repository provides template for `Slick`-based project with improvements made by MigaMake Pte Ltd in order to make static website generation more convinient.
+This repository provides a template for `Slick`-based project with improvements made by MigaMake Pte Ltd in order to make static website generation more convenient.
 
 - [GitLab CI](#gitlab-ci)
 - [Install](#install)
@@ -37,20 +37,20 @@ pages:
     - master
 ```
 
-Initial build may take some time (around 20 minutes), following builds will be significantly faster.
+The initial build may take some time (around 20 minutes), the following builds will be significantly faster.
 
 
 ## Install
 
 1. Install stack
-2. Generate template with all relevant functionality by using following command
+2. Generate template with all relevant functionality by using the following command
 ```
 $ stack new <name of the project> https://gitlab.com/migamake/slick-template/raw/master/simple-slick.hsfiles
 ```
 
-Template provides only Haskell source code, as a part of `Slick`-based generation you need to create template files yourself based on your design of hte site.
+The template provides only Haskell source code, as a part of `Slick`-based generation you need to create template files yourself based on your design of the site.
 
-If you don't have global config for stack defined in `~/.stack/config.yaml`, you can create it before pulling template with following structure
+If you don't have a global config for stack defined in `~/.stack/config.yaml`, you can create it before pulling template with structure like
 ```yaml
 templates:
   params:
@@ -66,19 +66,19 @@ if you prefer not to create you'll need to provide parameters for the repo by ha
 ```bash
 $ stack new <name of the project> https://gitlab.com/migamake/slick-template/raw/master/simple-slick.hsfiles -p "author-email:value" -p "author-name:value" -p "category:value" -p "copyright:value" -p "github-username:value"
 ```
-which is not very confinient
+which is not very convinient but generates file correctly. Without them you'll have correct template but will need to update values in `package.yaml` manually.
 
 ## Configure
 
-Configuring project for your needs done in 2 ways, by modification of Haskell source code and by adding specific site files like html-templates, css, js required for the project.
+Configuring the template for your needs done in 2 ways, by modification of Haskell source code and by adding specific site files like html-templates, css, js required for the project.
 
 ### Generator
 
-Slick package resuses [Shake](https://shakebuild.com/) build system. In order to create your own rules, add your special rules to the function `buildRules` in `app/Main.hs` and conversion logic at `app/Builder.hs`
+Slick package reuses [Shake](https://shakebuild.com/) build system. In order to create your own rules, add your special rules to the function `buildRules` in `app/Main.hs` and conversion logic at `app/Builder.hs`
 
 ### HTML/CSS/JS/
 
-Typically files live in `site` directory where everything outside `templates` folder will be considered either content or static file. Everything with `.md` extension wil be converted to `.html` if not specified differently. Here is example structure  mapped to the current generator configuration. You can download example content directory from source repository amd put along with your template.
+Typically files live in `site` directory where everything outside `templates` folder will be considered either content or static file. Everything with `.md` extension will be converted to `.html` if not specified differently. Here is an example structure mapped to the current generator configuration. You can download example content directory from source repository and put along with your template.
 
 ```
 ├── 404.md
@@ -120,9 +120,12 @@ Typically files live in `site` directory where everything outside `templates` fo
 
 ### 3rd party tools
 
-#### Tidy
+For proper work of this template, you'll need several 3rd-party tools installed locally `tidy` and `linkchecker`. They can be easily installed with your favorite package manager. For example, on Ubuntu
+```bash
+$ sudo apt-get install tidy linkchecker
+```
 
-#### Linkchecker
+This template relies on those tools to ensure the correctness of the website.
 
 ## Running
 
@@ -137,14 +140,15 @@ which will build Haskell executable, then
 $ stack exec -- site
 ```
 which will generate output in `public` folder.
-Additionally you can use `--preview` and `--dev` options like this
+Additionally, you can use `--preview` ` option like this
 ```bash
-$ stack exec -- site --preview --dev
+$ stack exec -- site --preview
 ```
 
 - `site` name of executable, replace to yours
-- (`--preview`) - Preview  mode will spin out small server and host site locally on port `3030`
-- (`--dev`)     - Development mode will include drafts in the output for the site which is useful during content writing
+- (`--preview`) - Preview  mode will spin out small server and host site locally on port `3030`.
+
+Or define your options in `Flags` strucure in `Main.hs` module.
 
 ## Resources
 
