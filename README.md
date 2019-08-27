@@ -16,20 +16,43 @@ This repository provides a template for `Slick`-based project with improvements 
 This project's static Pages are built by [GitLab CI][ci], following the steps
 defined in [`.gitlab-ci.yml`](.gitlab-ci.yml):
 
-```
-image: haskell:7.10.3
+```yaml
+image: "haskell:latest"
+
+before_script:
+  - apt-get update && apt-get install -y make openssh-client xz-utils tidy linkchecker
+  # add woraround to properly fetch packages as git repos from Github, Gitlab
+  - ssh-keygen -t rsa -C "ci@migamake.com" -f ~/.ssh/id_rsa
+  - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+  - ssh-keyscan -t rsa gitlab.com >> ~/.ssh/known_hosts
+  - git config --global url."https://github.com/".insteadOf "git@github.com:"
+  - git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
+  # prepare dependency cache for further reuse
+  - export STACK_ROOT=`pwd`/.stack
+  - stack new sitecom simple-slick.hsfiles
+  - cp -r site/ sitecom/
+  - cd sitecom/
+  - stack setup
+  - stack install --only-dependencies
+  - stack build
+
+build:
+  cache:
+    paths:
+      - _cache
+      - .stack
+  script:
+    - stack exec -- sitecom
+  except:
+    - master
 
 pages:
   cache:
     paths:
       - _cache
       - .stack
-  before_script:
-    - export STACK_ROOT=`pwd`/.stack
-    - stack install --only-dependencies
-    - stack build
   script:
-    -  stack exec -- site
+    - stack exec -- sitecom
   artifacts:
     paths:
       - public
