@@ -74,12 +74,6 @@ executables:
     default-extensions:
     - OverloadedStrings
 
-{-# START_FILE tidy.init #-}
-output-file: /dev/null
-quiet: yes
-markup: no
-drop-empty-elements: no
-
 {-# START_FILE Setup.hs #-}
 import Distribution.Simple
 main = defaultMain
@@ -96,11 +90,11 @@ main = defaultMain
 
 module Main where
 
+import           Builder
 import           Control.Applicative
 import           Control.Concurrent
 import           Control.Lens
-import           Control.Monad                 (forM_, forever, liftM, mzero,
-                                                void, when)
+import           Control.Monad
 import           Data.Aeson                    as A
 import           Data.Aeson.Lens
 import           Data.Aeson.TH
@@ -131,54 +125,35 @@ import           System.Directory
 import           System.Directory.Extra        (listFilesRecursive, removeFile)
 import           System.Environment
 
--- local modules
-import           Builder
+data Flags = Preview deriving (Eq)
 
--------------------------------------------------------------------------------
-
--- | List our custom keys that we need to manage additional behaviour
-data Flags =
-    Preview     -- ^ key to run Warp server
-  deriving (Eq)
-
--- | Specific flags for Shake to allow custom keys required for specific logic
 flags :: forall a. [OptDescr (Either a Flags)]
-flags =
-  [ Option "" ["preview"] (NoArg $ Right Preview) "running as preview"
-  ]
+flags = [ Option "" ["preview"] (NoArg $ Right Preview) "running as preview"]
 
--- | Rules for the Shake builder that define site construction workflow
---  (should live in a separate function that can be used as an argument in other functions)
 buildRules :: Foldable t => t Flags -> Rules ()
 buildRules flags = do
-  let isPreviewMode = Preview     `elem`    flags
-
-  action $ runAfter $ putStrLn "RUNNING AFTER!!!"
+  let isPreviewMode = Preview `elem` flags
   when isPreviewMode $ do
     action $ runAfter $ liftIO $ void . forkIO $ do
       putStrLn "Running with Preview"
       serverStart "public" "127.0.0.1" 3030 serverHandler
 
   id $ do
-      liftIO $ putStrLn $ "Running in Production mode\n"
+      liftIO $ putStrLn "Running in Production mode\n"
 
-      -- Set up caches
       let entitiesDir = "site"
 
-      aboutCache         <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
-      postsCache         <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
+      aboutCache <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
+      postsCache <- jsonCache' $ loadEntity myMarkdownOptions html5Options entitiesDir
 
       want ["lint"]
 
-      -- Require all the things we need to build the whole site
       phony "site" $ do
-          -- Required folders and pages that should be part of output
           let reqDirectories =
                [ "static"
                , "posts"
                , "public/robots.txt"
                , "public/index.html"
-               , "public/posts.html"
                , "public/about.html"
                , "public/404.html"
                ]
@@ -195,13 +170,10 @@ buildRules flags = do
 
       phony "tidy" $ do
           need ["site"]
-          --need ["public//index.html", "public/posts/*.html"]
           inputs <- getDirectoryFiles "public" ["//*.html"]
           forM_ inputs $ \input ->
-            --liftIO $ putStrLn $ "Run tidy on " <> input
             command_ [Cwd "public"] "tidy" (["-config", "../tidy.init", input])
 
-      -- Linting
       phony "lint" $ do
           need ["tidy", "linkchecker.out"]
 
@@ -209,39 +181,27 @@ buildRules flags = do
           staticFiles <-
             getDirectoryFiles "." [ "site/css//*"
                                   , "site/js//*"
-                                  , "site/fonts//*"
                                   , "site/images//*"
-                                  , "site/robots.txt"]
+                                  , "site/robots.txt" ]
           need (("public" </>) . dropDirectory1 <$> staticFiles)
 
-      -- Require all static assets
-      -- Rule for handling static assets, just copy them from source to dest
       [ "public/css//*",
         "public/js//*",
-        "public/fonts//*",
         "public/images//*",
         "public/robots.txt"
         ] |%> \out -> do
-          copyFileChanged ("site" </> dropDirectory1 out) out
+          copyFileChanged (entitiesDir </> dropDirectory1 out) out
 
-      -- rule for building About page
       "public/about.html" %> buildAbout aboutCache
-
-      -- Find and require every post to be built and Blog page
       "posts" ~> requireEntity entitiesDir "posts" "//*.md"
       "public/posts//*.html" %> buildPost postsCache
-      "public/posts.html" %> buildPosts postsCache
-
-      -- build the main table of contents
-      "public/*.html"     %> buildOther
+      "public/*.html" %> buildOther
       "public/index.html" %> buildIndex postsCache
 
   want ["site"]
 
--- | Function to start custom Shake pipeline for execution
---
-runShakeBuilder :: ShakeOptions                     -- ^ Options for the Shake builder
-                -> [OptDescr (Either String Flags)] -- ^ Converted CLI arguments
+runShakeBuilder :: ShakeOptions
+                -> [OptDescr (Either String Flags)]
                 -> IO ()
 runShakeBuilder shOpts flags =
  shakeArgsPruneWith
@@ -255,15 +215,13 @@ main = do
   shakeArgs <- getArgs
   cwd       <- getCurrentDirectory
 
-  let shOpts  = shakeOptions {shakeVerbosity = Quiet}
+  let shOpts  = shakeOptions {shakeVerbosity = Diagnostic}
 
-  -- Run Shake pipeline as usuall
   runShakeBuilder
     shOpts
     flags
 
-  -- uncomment for proper preview
-  -- forever $ threadDelay 100000
+  forever $ threadDelay 100000
 
 {-# START_FILE app/Builder.hs #-}
 {-# LANGUAGE CPP                       #-}
@@ -272,6 +230,7 @@ main = do
 {-# LANGUAGE DuplicateRecordFields     #-}
 {-# LANGUAGE NamedFieldPuns            #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE Rank2Types                #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
@@ -279,7 +238,6 @@ main = do
 
 module Builder( buildIndex
               , buildOther
-              , buildPosts
               , buildAbout
               , buildPost
               , myMarkdownOptions
@@ -292,8 +250,6 @@ import           Control.Monad                (liftM, mzero)
 import           Data.Aeson                   as A
 import           Data.Aeson.Lens
 import           Data.Aeson.TH
-import           Data.Aeson.TH                (Options (..), defaultOptions,
-                                               deriveJSON)
 import           Data.Char
 import           Data.Function                (on)
 import           Data.List                    (intersperse, sortBy)
@@ -318,13 +274,8 @@ import           Text.Pandoc.Highlighting
 import           Text.Pandoc.Options
 import           Text.Pandoc.Readers.Markdown (readMarkdown)
 import           Text.Pandoc.Writers.HTML     (writeHtml5String)
-
 import           Types
 
---------------------------------------------------------------------------------
--- Page Builders
-
--- | Given a cache of posts this will build a table of contents
 buildIndex :: (EntityFilePath PostFilePath -> Action Post)
            -> FilePath
            -> Action ()
@@ -332,16 +283,12 @@ buildIndex postCache out = do
   posts     <- traverse (postCache . EntityFilePath) =<< fileNames "site" "posts" "//*.md"
   indexTpl  <- compileTemplate' "site/templates/index.html"
 
-  let postsSorted      = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) posts
-      postsFeatured    = Prelude.take 5 $ catMaybes $ Prelude.map (\p -> if (featured p) then (Just p) else Nothing ) postsSorted
+  let postsSorted = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) posts
 
-  let indexWrap = IndexWrap { posts         = postsSorted
-                            , postsFeatured = postsFeatured
-                            }
+  let indexWrap = IndexWrap { posts = postsSorted}
       indexHTML = T.unpack $ substitute indexTpl (toJSON indexWrap)
   writeFile' out indexHTML
 
--- | Builds about html page
 buildAbout :: (EntityFilePath AboutFilePath -> Action About)
            -> FilePath
            -> Action ()
@@ -359,22 +306,6 @@ buildAbout  aboutCache out = do
 
   writeFile' out aboutHTML
 
--- | Given a cache of posts this will build a table of contents
-buildPosts :: (EntityFilePath PostFilePath -> Action Post)
-          -> FilePath
-          -> Action ()
-buildPosts postCache out = do
-  posts    <- traverse (postCache . EntityFilePath) =<< fileNames "site" "posts" "//*.md"
-  indexTpl <- compileTemplate' "site/templates/posts.html"
-
-  let postsSorted = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) posts
-      blogWrap    = BlogWrap
-                      { blog    = postsSorted
-                      }
-      blogHTML = T.unpack $ substitute indexTpl (toJSON blogWrap)
-  writeFile' out blogHTML
-
--- | Build a html file for a given post from a cache of posts.
 buildPost :: (EntityFilePath PostFilePath -> Action Post)
           -> FilePath
           -> Action ()
@@ -385,7 +316,6 @@ buildPost postCache out = do
   template <- compileTemplate' "site/templates/post.html"
   writeFile' out . T.unpack $ substitute template (toJSON post)
 
--- | Builds any other html page encountered during execution
 buildOther filename = do
     liftIO $ putStrLn $ unwords ["source", show source, "template", show template]
     need [source, template]
@@ -395,9 +325,6 @@ buildOther filename = do
   where
     source   = destToSrc "site" filename -<.> "md"
     template = "site/templates/generic.html"
-
---------------------------------------------------------------------------------
--- Pandoc customization
 
 myMarkdownToHTML :: T.Text -> Action Value
 myMarkdownToHTML  =
@@ -465,33 +392,24 @@ import           Development.Shake.FilePath
 import           GHC.Generics               (Generic)
 import           Slick.Extra
 
-import           Utils
+renderToDay :: FormatTime t => t -> String
+renderToDay = formatTime defaultTimeLocale "%B %e, %Y"
 
--------------------------------------------------------------------------------
--- Core Data Types and Instances
-
--- | Represents the template dependencies of the index page
 data IndexWrap =
   IndexWrap
     { posts         :: [Post]
-    , postsFeatured :: [Post]
     } deriving (Generic, Show)
 
 instance FromJSON IndexWrap
 instance ToJSON IndexWrap
 
--- | A JSON serializable representation of a post's metadata
 data Post =
   Post
     { title       :: String
     , authors     :: [T.Text]
     , date        :: UTCTime
     , image       :: Maybe String
-    , featured    :: Bool
     , description :: String
---    , extDisqus    :: OptDisqus
---    , extFbComment :: OptFbComment
-        -- internally predefined by Slick
     , url         :: String
     , content     :: String
     } deriving (Generic, Eq, Ord, Show)
@@ -503,54 +421,46 @@ instance FromJSON Post where
       authors'    <- o .: "authors"
       date'       <- o .: "date"
       image       <- o .: "image"
-      featured    <- o .: "featured"
       description <- o .: "description"
       url         <- o .: "url"
       content     <- o .: "content"
 
       let authors = T.splitOn "," authors'
-
-      -- SB: for some reason we see doubled FromJSON -> ToJSON conversion, so
-      --     for now we need to check for 2 possible date formats
       let dateM = parseTimeM True defaultTimeLocale "%Y-%m-%d" date'
       let date  =  case dateM of
                      Nothing -> parseTimeOrError True defaultTimeLocale "%B %e, %Y" date'
                      Just tm -> tm
       return $
-        Post title authors date image featured description url content
+        Post title authors date image description url content
 
 instance ToJSON Post where
-  toJSON (Post tl au dt im fe ds ul cn) =
+  toJSON (Post tl au dt im ds ul cn) =
     A.object
       [ "title"       A..= tl
       , "authors"     A..= T.intercalate "," au
       , "date"        A..= (renderToDay dt)
       , "image"       A..= im
-      , "featured"    A..= fe
       , "description" A..= ds
       , "url"         A..= ul
       , "content"     A..= cn
       ]
 
-data BlogWrap =
-  BlogWrap
-    { blog :: [Post]
+data NewsWrap =
+  NewsWrap
+    { news :: [Post]
     } deriving (Generic, Show)
 
-instance FromJSON BlogWrap
-instance ToJSON BlogWrap
+instance FromJSON NewsWrap
+instance ToJSON NewsWrap
 
--- | Represents raw About page
 data About =
   About
     { abrwTitle       :: String
     , abrwDescription :: String
-    -- internally predefined by Slick
     , abrwUrl         :: String
     , abrwContent     :: String
     } deriving (Generic, Show)
 
--- use this to strip proj prefix
 deriveJSON defaultOptions { fieldLabelModifier = dropPrefix 4 } ''About
 
 -- | Represents About page
@@ -559,17 +469,11 @@ data AboutWrap =
   AboutWrap
     { abTitle       :: String
     , abDescription :: String
-    -- internally predefined by Slick
     , abUrl         :: String
     , abContent     :: String
     } deriving (Generic, Show)
 
 deriveJSON defaultOptions { fieldLabelModifier = dropPrefix 2 } ''AboutWrap
-
---------------------------------------------------------------------------------
-
--- | We have to use unique constructors becasue Shake needs to create `Value` for each entity path
---   and to avoid Shake Oracle conflict. Used as a Shake Cache key to build a cache of post objects.
 
 newtype AboutFilePath =
   AboutFilePath String
@@ -578,38 +482,6 @@ newtype AboutFilePath =
 newtype PostFilePath =
   PostFilePath String
   deriving (Show, Eq, Generic, Hashable, Binary, NFData)
-
-
-{-# START_FILE app/Utils.hs #-}
-{-# LANGUAGE TupleSections     #-}
-
-module Utils
-  ( renderToDay
-  ) where
-
-import           Control.Monad
-import           Data.List                  (intersperse, sortBy)
-import           Data.List                  as L (intersperse, sortBy, (\\))
-import           Data.Ord                   (comparing)
-import qualified Data.Text                  as T
-import           Data.Time
-import           Development.Shake
-import           Development.Shake.FilePath
-import           System.Directory
-import           System.Directory.Extra     (listFilesRecursive, removeFile)
-import           System.Environment
-
-------------------------------------------------------------------------------
--- Helper functions
-
--- | Generalized sorting function
-sortByM :: (Monad m, Ord k) => (a -> m k) -> [a] -> m [a]
-sortByM f xs =
-  liftM (Prelude.map fst . sortBy (comparing snd)) $ mapM (\x -> liftM (x,) (f x)) xs
-
--- | Render timestamp to the format required by page design
-renderToDay :: FormatTime t => t -> String
-renderToDay = formatTime defaultTimeLocale "%B %e, %Y"
 
 {-# START_FILE README.md #-}
 # {{name}}
@@ -645,3 +517,53 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+{-# START_FILE tidy.init #-}
+output-file: /dev/null
+quiet: yes
+markup: no
+drop-empty-elements: no
+
+{-# START_FILE site/robots.txt #-}
+User-agent: *
+Sitemap:    sitemap.xml
+
+{-# START_FILE site/templates/generic.html #-}
+<!-- -->
+
+{-# START_FILE site/templates/index.html #-}
+<!-- -->
+
+{-# START_FILE site/templates/about.html #-}
+<!-- -->
+
+{-# START_FILE site/templates/post.html #-}
+<!-- -->
+
+{-# START_FILE site/css/bulma-site.css #-}
+<!-- -->
+
+{-# START_FILE site/js/livereload.js #-}
+ var ws = new WebSocket('ws://localhost:3030');
+ ws.onopen = function() {
+    ws.send("Browser client connected!");
+  }
+ ws.onmessage = function (event) {
+   console.log(event.data);
+   window.location.reload(true);
+ };
+
+{-# START_FILE site/posts/lorem-ipsum-1.md #-}
+---
+title:  "Lorem ipsum dolor sit amet 1"
+authors: Name Surname
+date: 2019-01-17
+tags: [tag1]
+description: Lorem ipsum dolor sit amet
+image: about.jpg
+---
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. In mollis nunc sed id semper risus. Dictum at tempor commodo ullamcorper a. Amet dictum sit amet justo. Morbi enim nunc faucibus a. Mattis rhoncus urna neque viverra justo nec ultrices dui. Risus in hendrerit gravida rutrum quisque non tellus orci. Ac turpis egestas sed tempus urna et pharetra pharetra. Risus feugiat in ante metus dictum at. Semper auctor neque vitae tempus. Ultricies lacus sed turpis tincidunt id. Velit aliquet sagittis id consectetur purus ut faucibus. Lacus luctus accumsan tortor posuere ac ut consequat semper viverra. Urna cursus eget nunc scelerisque.
+
+## Interdum velit euismod in pellentesque massa placerat duis ultricies.
+Egestas integer eget aliquet nibh praesent tristique magna sit amet. Adipiscing elit duis tristique sollicitudin nibh sit amet commodo. Ut tortor pretium viverra suspendisse potenti nullam. Cursus vitae congue mauris rhoncus aenean vel elit scelerisque. Neque sodales ut etiam sit. In fermentum posuere urna nec tincidunt praesent semper feugiat nibh. Lobortis scelerisque fermentum dui faucibus in. Egestas maecenas pharetra convallis posuere morbi leo. A pellentesque sit amet porttitor eget dolor. Nulla at volutpat diam ut venenatis tellus in metus vulputate. Turpis egestas maecenas pharetra convallis posuere morbi leo urna molestie.
