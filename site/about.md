@@ -1,9 +1,9 @@
 ---
-title:       About Atreides Mining, Inc
+title:       About Example
 description: About the company and staff
 ---
 
 About the company
 =================
 
-Atreides Mining, Inc from Caladan
+Example from Caladan

@@ -2,40 +2,83 @@
 <html lang="en">
 
     <head profile="http://www.w3.org/2005/10/profile">
-        {{>site/templates/_shared/head.html}}
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0,
+            maximum-scale=1.0, user-scalable=no" />
+        <meta name="robots" content="index, nofollow">
 
-        <title>Atreides Mining, Inc - About Us</title>
+        <link rel="stylesheet" type="text/css" href="/css/bulma.min.css">
+        <link rel="stylesheet" type="text/css" href="/css/bulma-site.css">
+        <script type="text/javascript" async="true" src="/js/livereload.js"></script>
+        <title>Example - {{title}}</title>
+
     </head>
 
     <body class="home">
-        {{>site/templates/_shared/header.html}}
+        <header>
+            <nav class="navbar">
+                <div class="navbar-brand">
+                    <a href="/">
+                        <img src="/images/site-logo-dark.png" alt="Atreides
+                            Mining, Inc" title="Example" />
+                        <h1>
+                            Example sitse
+                        </h1>
+                    </a>
+                    <div class="navbar-burger burger"
+                        data-target="navbarExampleTransparentExample">
+                        <i class="fas fa-bars"></i>
+                    </div>
+                </div>
 
-    <section class="page-title fog">
-        <h1>About Us</h1>
-        <p class="subtitle">
-            Bringing new opportunities to new worlds!
-        </p>
-    </section>
+                <div id="navbarExampleTransparentExample" class="navbar-menu">
+                    <div class="navbar-end">
+                        <a class="navbar-item" href="/index.html">
+                            Home
+                        </a>
+                        <a class="navbar-item" href="/about.html">
+                            About
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </header>
+
+        <section class="page-title fog">
+            <h1>About Us</h1>
+            <p class="subtitle">
+                Bringing new opportunities to new worlds!
+            </p>
+        </section>
 
 
 
-    <div class="container">
-        <div class="overview">
-            <div class="columns">
-                <div class="column">
+        <div class="container">
+            <div class="overview">
+                <div class="columns">
+                    <div class="column">
 
-                    <h3 id="about-the-company">About the company</h3>
-                    <p>Atreides Mining, Inc has been <a href="#">established on Caladan in 2012</a> to pursue Resource Mining opportunities.</p>
+                        <h3 id="about-the-company">About the company</h3>
+                        <p>Example has been <a href="#">established
+                                on Caladan in 2012</a> to pursue Resource Mining
+                            opportunities.</p>
 
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer id="dark-footer" class="footer">
+            <div class="container">
+
+                <div class="footer-about">
+                    <a href="#">Example</a> - this is example site
+                    <br>
+
+                    &copy; 2019 Example. All rights reserved
+                    <br>
 
                 </div>
             </div>
-            </div>
-    </div>
-
-    {{>site/templates/_shared/footer.html}}
-    <script type="application/javascript">
-        document.addEventListener('DOMContentLoaded', () => {
-          site.aboutPage();
-        });
-      </script>
+        </footer>

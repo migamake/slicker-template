@@ -1060,7 +1060,7 @@ section.page-title:after {
     margin-top: 2rem;
     font-weight: normal;
 }
-.featured-posts-list > .title {
+.featured-news-list > .title {
     font-size: 28px;
     color: #8289ab;
     padding-bottom: 60px;
@@ -1069,7 +1069,7 @@ section.page-title:after {
     position:relative;
     margin-bottom: 0;
 }
-.featured-posts-list > .title:after{
+.featured-news-list > .title:after{
     content:"";
     display:block;
     width: 6px;
@@ -1082,14 +1082,14 @@ section.page-title:after {
 }
 
 
-.featured-posts-list .post h1 {
+.featured-news-list .post h1 {
     font-size: 18px;
     font-weight: 500;
 }
-.featured-posts-list .post:hover a{
+.featured-news-list .post:hover a{
   color:#43af46;  
 }
- .featured-posts-list .post {
+ .featured-news-list .post {
     position: relative;
     margin-bottom: 50px;
     border-bottom: 1px solid #dbe0e8;
@@ -1097,22 +1097,22 @@ section.page-title:after {
     transition: 300ms ease-in-out;
     backface-visibility: hidden;
 }
-.featured-posts-list .post:last-child{
+.featured-news-list .post:last-child{
     border:none;
 }
-.featured-posts-list .date {
+.featured-news-list .date {
     position: absolute;
     top: -27px;
     font-size: 13px;
     color: #8289a9;
 }
 
-.featured-posts-list .post h1 a {
+.featured-news-list .post h1 a {
     color: #3f4451;
      transition:300ms;
 }
 
-.featured-posts-list .post p {
+.featured-news-list .post p {
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
@@ -1120,7 +1120,7 @@ section.page-title:after {
     font-size: 13px;
 }
 
-.featured-posts-list {
+.featured-news-list {
     background: #f4f6fa;
     padding: 30px;
     border-radius: 5px;
@@ -1361,7 +1361,7 @@ nav.social-links {text-align: center;}
     .container{
         max-width: 780px;
     }
-    .featured-posts-list{
+    .featured-news-list{
         display: none;
     }
     #news .columns,

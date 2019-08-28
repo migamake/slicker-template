@@ -1,11 +1,10 @@
 ---
-title:  "Meeting Arrakis and new mining facility"
-authors: Leto Atrides
-date: 2019-01-30
-tags:   [atrideds]
-description: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-image: posts/first-agm.jpg
-featured: true
+title:  "Lorem ipsum dolor sit amet 1"
+authors: Name Surname
+date: 2019-01-17
+tags: [tag1]
+description: Lorem ipsum dolor sit amet
+image: about.jpg
 ---
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. In mollis nunc sed id semper risus. Dictum at tempor commodo ullamcorper a. Amet dictum sit amet justo. Morbi enim nunc faucibus a. Mattis rhoncus urna neque viverra justo nec ultrices dui. Risus in hendrerit gravida rutrum quisque non tellus orci. Ac turpis egestas sed tempus urna et pharetra pharetra. Risus feugiat in ante metus dictum at. Semper auctor neque vitae tempus. Ultricies lacus sed turpis tincidunt id. Velit aliquet sagittis id consectetur purus ut faucibus. Lacus luctus accumsan tortor posuere ac ut consequat semper viverra. Urna cursus eget nunc scelerisque.
