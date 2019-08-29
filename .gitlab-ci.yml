@@ -11,10 +11,8 @@ before_script:
   # prepare dependency cache for further reuse
   - export STACK_ROOT=`pwd`/.stack
   - stack new sitecom simple-slick.hsfiles
-  - cp -r site/ sitecom/
   - cd sitecom/
   - stack setup
-  - stack install --only-dependencies
   - stack build
 
 build:
