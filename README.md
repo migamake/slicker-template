@@ -13,7 +13,7 @@ This repository provides a template for `Slick`-based project with improvements 
 
 ## GitLab CI
 
-This project's static Pages are built by [GitLab CI][ci], following the steps
+This project's static Pages are built by [GitLab CI](https://docs.gitlab.com/ee/ci/), following the steps
 defined in [`.gitlab-ci.yml`](.gitlab-ci.yml):
 
 ```yaml
