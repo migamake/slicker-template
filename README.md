@@ -38,7 +38,7 @@ pages:
       - _cache
       - .stack
   script:
-    - stack exec -- sitecom
+    - stack exec -- site
     - mv public ../public
   artifacts:
     paths:
