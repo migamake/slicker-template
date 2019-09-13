@@ -21,9 +21,6 @@ build:
       - .stack
   script:
     - stack build
-    #- stack exec -- site
-  except:
-    - master
 
 pages:
   cache:
