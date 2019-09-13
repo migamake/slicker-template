@@ -3,7 +3,7 @@
 This repository provides a template for `Slick`-based project with improvements made by MigaMake Pte Ltd in order to make static website generation more convenient.
 
 - [GitLab CI](#gitlab-ci)
-- [Install](#install)
+- [How to Use](#how-to-use)
 - [Configure](#configure)
   * [Generator](#generator)
   * [HTML/CSS/JS/](#html-css-js-)
@@ -50,7 +50,7 @@ pages:
 The initial build may take some time (around 20 minutes), the following builds will be significantly faster.
 
 
-## How to use
+## How to Use
 
 1. Install stack
 2. Generate template with all relevant functionality by using the following command
