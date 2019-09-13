@@ -45,25 +45,15 @@ build:
     - stack exec -- sitecom
   except:
     - master
-
-pages:
-  cache:
-    paths:
-      - _cache
-      - .stack
-  script:
-    - stack exec -- sitecom
   artifacts:
     paths:
       - public
-  only:
-    - master
 ```
 
 The initial build may take some time (around 20 minutes), the following builds will be significantly faster.
 
 
-## Install
+## How to use
 
 1. Install stack
 2. Generate template with all relevant functionality by using the following command
