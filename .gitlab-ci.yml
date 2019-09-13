@@ -1,9 +1,5 @@
 image: "haskell:latest"
 
-stages:
-  - build
-  - pages
-
 before_script:
   - apt-get update && apt-get install -y make openssh-client xz-utils tidy linkchecker
   # add woraround to properly fetch packages as git repos from Github, Gitlab
@@ -17,6 +13,8 @@ before_script:
   - stack new sitecom simple-slick.hsfiles
   - cd sitecom/
   - stack setup
+  - stack install --only-dependencies
+  - stack build
 
 build:
   cache:
@@ -24,7 +22,9 @@ build:
       - _cache
       - .stack
   script:
-    - stack build
+    - stack exec -- site
+  except:
+    - master
 
 pages:
   cache:
