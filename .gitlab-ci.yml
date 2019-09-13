@@ -20,6 +20,7 @@ build:
       - _cache
       - .stack
   script:
+    - stack build
     - stack exec -- site
   except:
     - master
