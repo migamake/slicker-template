@@ -13,7 +13,6 @@ before_script:
   - stack new sitecom simple-slick.hsfiles
   - cd sitecom/
   - stack setup
-  - stack build
 
 build:
   cache:
@@ -21,7 +20,8 @@ build:
       - _cache
       - .stack
   script:
-    - stack exec -- site
+    - stack build
+    #- stack exec -- site
   except:
     - master
 
