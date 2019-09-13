@@ -21,13 +21,11 @@ image: "haskell:latest"
 
 before_script:
   - apt-get update && apt-get install -y make openssh-client xz-utils tidy linkchecker
-  # add woraround to properly fetch packages as git repos from Github, Gitlab
   - ssh-keygen -t rsa -C "ci@migamake.com" -f ~/.ssh/id_rsa
   - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
   - ssh-keyscan -t rsa gitlab.com >> ~/.ssh/known_hosts
   - git config --global url."https://github.com/".insteadOf "git@github.com:"
   - git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
-  # prepare dependency cache for further reuse
   - export STACK_ROOT=`pwd`/.stack
   - stack new sitecom simple-slick.hsfiles
   - cp -r site/ sitecom/
