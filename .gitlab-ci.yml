@@ -10,7 +10,8 @@ before_script:
   - git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
   # prepare dependency cache for further reuse
   - export STACK_ROOT=`pwd`/.stack
-  - stack new --bare --force sitecom simple-slick.hsfiles
+  - stack new sitecom simple-slick.hsfiles
+  - cd sitecom/
   - stack setup
   - stack build
 
@@ -31,6 +32,7 @@ pages:
       - .stack
   script:
     - stack exec -- sitecom
+    - mv public ../public
   artifacts:
     paths:
       - public
