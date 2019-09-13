@@ -32,7 +32,7 @@ version:             0.1.0.0
 #synopsis:
 #description:
 homepage:            "https://github.com/{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}#readme"
-license:             BSD3
+license:             PublicDomain
 author:              "{{author-name}}{{^author-name}}Author name here{{/author-name}}"
 maintainer:          "{{author-email}}{{^author-email}}example@example.com{{/author-email}}"
 copyright:           "{{copyright}}{{^copyright}}{{year}}{{^year}}2019{{/year}} {{author-name}}{{^author-name}}Author name here{{/author-name}}{{/copyright}}"
@@ -44,7 +44,7 @@ extra-source-files:
 description:         Company website <https://www.site.com>
 
 executables:
-  {{name}}:
+  site:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -79,14 +79,10 @@ import Distribution.Simple
 main = defaultMain
 
 {-# START_FILE app/Main.hs #-}
-{-# LANGUAGE CPP                        #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DuplicateRecordFields      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 module Main where
 
@@ -133,12 +129,12 @@ flags = [ Option "" ["preview"] (NoArg $ Right Preview) "running as preview"]
 buildRules :: Foldable t => t Flags -> Rules ()
 buildRules flags = do
   let isPreviewMode = Preview `elem` flags
-  when isPreviewMode $ do
+  when isPreviewMode $
     action $ runAfter $ liftIO $ void . forkIO $ do
       putStrLn "Running with Preview"
       serverStart "public" "127.0.0.1" 3030 serverHandler
 
-  id $ do
+  do
       liftIO $ putStrLn "Running in Production mode\n"
 
       let entitiesDir = "site"
@@ -172,9 +168,9 @@ buildRules flags = do
           need ["site"]
           inputs <- getDirectoryFiles "public" ["//*.html"]
           forM_ inputs $ \input ->
-            command_ [Cwd "public"] "tidy" (["-config", "../tidy.init", input])
+            command_ [Cwd "public"] "tidy" ["-config", "../tidy.init", input]
 
-      phony "lint" $ do
+      phony "lint" $
           need ["tidy", "linkchecker.out"]
 
       phony "static" $ do
@@ -189,7 +185,7 @@ buildRules flags = do
         "public/js//*",
         "public/images//*",
         "public/robots.txt"
-        ] |%> \out -> do
+        ] |%> \out ->
           copyFileChanged (entitiesDir </> dropDirectory1 out) out
 
       "public/about.html" %> buildAbout aboutCache
@@ -215,7 +211,7 @@ main = do
   shakeArgs <- getArgs
   cwd       <- getCurrentDirectory
 
-  let shOpts  = shakeOptions {shakeVerbosity = Diagnostic}
+  let shOpts  = shakeOptions {shakeVerbosity = Silent}
 
   runShakeBuilder
     shOpts
@@ -417,9 +413,8 @@ instance FromJSON Post where
       content <- o .: "content"
 
       let dateM = parseTimeM True defaultTimeLocale "%Y-%m-%d" date'
-      let date  =  case dateM of
-                     Nothing -> parseTimeOrError True defaultTimeLocale "%B %e, %Y" date'
-                     Just tm -> tm
+      let date = fromMaybe (parseTimeOrError True defaultTimeLocale "%B %e, %Y" date') dateM
+
       return $
         Post title author date url content
 
@@ -428,7 +423,7 @@ instance ToJSON Post where
     A.object
       [ "post-title"  A..= tl
       , "post-author" A..= au
-      , "post-date"   A..= (renderToDay dt)
+      , "post-date"   A..= renderToDay dt
       , "url"         A..= ul
       , "content"     A..= cn
       ]
@@ -477,34 +472,7 @@ newtype PostFilePath =
 {-# START_FILE LICENSE #-}
 Copyright {{author-name}}{{^author-name}}Author name here{{/author-name}} (c) {{year}}{{^year}}2018{{/year}}
 
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above
-      copyright notice, this list of conditions and the following
-      disclaimer in the documentation and/or other materials provided
-      with the distribution.
-
-    * Neither the name of {{author-name}}{{^author-name}}Author name here{{/author-name}} nor the names of other
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Public Domain
 
 {-# START_FILE tidy.init #-}
 output-file: /dev/null
