@@ -1,5 +1,9 @@
 image: "haskell:latest"
 
+stages:
+  - build
+  - pages
+
 before_script:
   - apt-get update && apt-get install -y make openssh-client xz-utils tidy linkchecker
   # add woraround to properly fetch packages as git repos from Github, Gitlab
