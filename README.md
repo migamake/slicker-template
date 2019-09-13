@@ -28,24 +28,23 @@ before_script:
   - git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
   - export STACK_ROOT=`pwd`/.stack
   - stack new sitecom simple-slick.hsfiles
-  - cp -r site/ sitecom/
   - cd sitecom/
   - stack setup
-  - stack install --only-dependencies
   - stack build
 
-build:
+pages:
   cache:
     paths:
       - _cache
       - .stack
   script:
     - stack exec -- sitecom
-  except:
-    - master
+    - mv public ../public
   artifacts:
     paths:
       - public
+  only:
+    - master
 ```
 
 The initial build may take some time (around 20 minutes), the following builds will be significantly faster.

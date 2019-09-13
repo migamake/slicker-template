@@ -224,15 +224,12 @@ main = do
 {-# START_FILE app/Builder.hs #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DataKinds                 #-}
-{-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE DuplicateRecordFields     #-}
 {-# LANGUAGE NamedFieldPuns            #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE Rank2Types                #-}
-{-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TemplateHaskell           #-}
 
 module Builder( buildIndex
               , buildOther
@@ -281,7 +278,7 @@ buildIndex postCache out = do
   posts     <- traverse (postCache . EntityFilePath) =<< fileNames "site" "posts" "//*.md"
   indexTpl  <- compileTemplate' "site/templates/index.html"
 
-  let postsSorted = reverse $ sortBy (\p1 p2 -> compare (date p1) (date p2)) posts
+  let postsSorted = sortBy (flip (\ p1 p2 -> compare (date p1) (date p2))) posts
 
   let indexWrap = IndexWrap { posts = postsSorted}
       indexHTML = T.unpack $ substitute indexTpl (toJSON indexWrap)
