@@ -211,7 +211,7 @@ main = do
   shakeArgs <- getArgs
   cwd       <- getCurrentDirectory
 
-  let shOpts  = shakeOptions {shakeVerbosity = Silent}
+  let shOpts  = shakeOptions {shakeVerbosity = Normal}
 
   runShakeBuilder
     shOpts
@@ -370,6 +370,7 @@ import           Data.Char
 import           Data.Function              (on)
 import           Data.List                  (intersperse, sortBy)
 import           Data.Map                   as M
+import           Data.Maybe
 import           Data.Monoid
 import           Data.Ord                   (comparing)
 import           Data.Set                   as S
